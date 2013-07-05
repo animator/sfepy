@@ -69,8 +69,8 @@ variables = {
 }
 
 ebcs = {
-    'T1' : ('Gamma_Left', {'T.0' : 30}),
-    'T2' : ('Gamma_Right', {'T.0' : 20}),
+    'T1' : ('Gamma_Left', {'T.0' : 20}),
+    'T2' : ('Gamma_Right', {'T.0' : 30}),
 }
 
 integrals = {
@@ -80,7 +80,7 @@ integrals = {
 equations = {
     'Laplace equation' :
     """dw_laplace.i1.Omega( m.c, v, T )
-     - dw_convect_v_grad_s.i1.Omega( v, w, T )
+     + dw_convect_v_grad_s.i1.Omega( v, w, T )
      = - dw_volume_dot.i1.Omega_L( load.f, v, p )"""
 }
 
@@ -102,8 +102,8 @@ def get_pars(ts, coors, mode=None, **kwargs):
     if mode == 'qp':
         x = coors[:, 0]
 
-        val = 55.0 * (x - 0.05)
-
+        #val = 55.0 * (x - 0.05)
+	val = 0.0 * x	
         val.shape = (coors.shape[0], 1, 1)
         return {'f' : val}
 
@@ -132,7 +132,7 @@ def get_convective_velocity(ts, coors, region=None):
     """
     Define nodal values of 'w' in the nodal coordinates `coors`.
     """
-    val = 1.0 * nm.ones_like(coors)
+    val = 100.0 * nm.ones_like(coors)
     val[:,1] = 0
     val[:,2] = 0
     return val
