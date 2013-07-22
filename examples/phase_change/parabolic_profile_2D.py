@@ -1,10 +1,10 @@
 r"""
-Steady Axial convection and diffusion in slug flow with velocity :math:`U _0` in an insulated pipe.
+Steady Axial convection and diffusion in parabolic flow with maximum velocity 
+:math:`U _0` in an insulated pipe.
 Longitudinal cross section is taken as the domain.
 It is subjected to specified temperature at the entry and exit lengths -
 :math:`T _0 for x \leqslant 0`
 :math:`T _1 for x \geqslant L`
-:math:`\alpha \frac {\partial T}{\partial y} = 0 for y = and y =`
 
 Find :math:`T` such that:
 .. math::
