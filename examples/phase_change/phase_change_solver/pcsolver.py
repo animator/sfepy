@@ -2,79 +2,46 @@ import numpy as np
 import math
 
 class SolidiPy:
-  def __init__(self):  
-    NI= self.NI=42 
-    NJ= self.NJ=32   
+  def __init__(self,grid,material,ics,bcs,times):  
+    NI= self.NI=grid['xGrids'] 
+    NJ= self.NJ=grid['yGrids']   
     NIJ= self.NIJ=max(self.NI,self.NJ)  
     NFMAX= self.NFMAX=10   
     NP= self.NP=10   
     NFX3= self.NFX3=self.NFMAX+1  
-    """
-    self.L1
-    self.L2
-    self.L3
-    self.M1
-    self.M2
-    self.M3
-    self.NF
-    
-    self.NGAM 
-    self.IST
-    self.JST
-    self.ITER
-    self.ITERL
-    """
-    self.ITLL=0
-    
+
+    self.ITLL=0 
     self.IPREF=1  
     self.JPREF=1   
     self.MODE=1   
     self.TIME=0  
 
-
-    self.XL= 8.89E-2
-    self.YL= 6.35E-2      
-    L1= self.L1= 42        
-    M1= self.M1= 32  
+    self.XL= grid['xLength']
+    self.YL= grid['yLength']     
+    L1= self.L1= grid['xGrids']       
+    M1= self.M1= grid['yGrids']  
     self.NTIME= 1 
     self.NGRID= 1
-    self.ISTP= 43
-    self.ISTP2= 1000
-    self.ISTP3= 1000  
-    self.DARCYCONST= 1.6E6
-    self.RHOCON= 6093.0   
-    self.TK= 32.0
-    self.CP= 381.5
-    self.ALATENT= 80160.0
-    self.BETA= 1.2E-4
-    self.VISCOSITY= 1.81E-3
-    self.RHOREF= 6095.0
+    self.DARCYCONST= material['darcyConstant']
+    self.RHOCON= material['density']
+    self.TK= material['conductivity']
+    self.CP= material['specificHeatCapacity']
+    self.ALATENT= material['latentHeat']
+    self.BETA= material['thermalExpansionCoeff']
+    self.VISCOSITY= material['viscosity']
+    self.RHOREF= material['referenceDensity']
     self.G=9.81  
-    self.TINITIAL=28.3 
-    self.TMELT=29.78
-    self.THOT=38 
-    self.DT=5
-    self.TLAST=600.0
-    self.TIME2=20.0
-    self.DT2=5.0
-    self.TIME3=150.0 
-    self.DT3=5.0
+    self.TINITIAL= ics['TINITIAL']
+    self.TMELT=material['meltingTemp']
+    self.THOT=bcs['THOT'] 
+    self.ISTP= times['maxIter'] 
+    self.DT=times['timeStep']
+    self.TLAST=times['TimeLast']
+    
     self.ERU=0.0001
     self.ERV=0.0001
     self.ERT=0.0001 
     self.ARELAX=0.2 # RELAXATION FOR ENTHALPY ONLY
-
-    """
-    self.SMAX
-    self.SSUM
-    self.FLOW
-    self.DIFF
-    self.ACOF   
-    self.AMIU
-    self.DELTMX
-    self.DELUMX
-    self.DELVMX 
-    """
 
     self.X=np.empty(NI, dtype=float)
     self.XU=np.empty(NI, dtype=float)
@@ -158,10 +125,6 @@ class SolidiPy:
     self.LPRINT=np.empty(NFX3, dtype=bool)
     self.LBLK=np.empty(NFX3, dtype=bool)  
 
-    """
-    self.LCONV  
-    """
-
     self.LSOLVE[:] = False
     self.LSOLVE[0]=True   
     self.LSOLVE[1]=True    
@@ -179,8 +142,6 @@ class SolidiPy:
     self.ITER=0   
     self.R[0]=0.0   
 
-    #CALL UGRID  
-  
     #CON,AP,U,V,RHO,PC AND P ARRAYS ARE INITIALIZED HERE    
     for J in range(M1):   
       for I in range(L1):   
@@ -209,7 +170,7 @@ class SolidiPy:
 
   def grid_initialize(self):
     """
-    THIS SUBROUTINE GENERATES UNIFORM GRID
+    THIS FUNCTION GENERATES UNIFORM GRID
     """
     self.XU[1]=0.0   
     DX=self.XL/float(self.L1-1)   
@@ -224,7 +185,7 @@ class SolidiPy:
 
   def geometry_initialize(self):
     """
-    THIS SUBROUTINE GENERATES THE CONTROL VOLUMES&VARIOUS RELATED-  
+    THIS FUNCTION GENERATES THE CONTROL VOLUMES&VARIOUS RELATED-  
     GEOMETRICAL PARAMETERS.
     """  
                                                                      
@@ -328,11 +289,10 @@ class SolidiPy:
     self.FYM[1]=1.   
     self.FY[M1-1]=1.   
     self.FYM[M1-1]=0.   
-
-                                                                     
+                                                                
     self.IM4=self.M1-3   
     self.IM5=self.M1-4   
-    #  117  FORMAT(5F10.4)   
+
     if self.MODE == 1: 
       print('COMPUTATION  IN  CARTESIAN  COORDINATES')   
     if self.MODE == 2: 
@@ -344,7 +304,7 @@ class SolidiPy:
 
   def start(self):  
     """
-    THIS SUBROUTINE GIVES INITIAL CONDITIONS FOR THE PROBLEM 
+    THIS FUNCTION GIVES INITIAL CONDITIONS FOR THE PROBLEM 
     """
     for I in range(0,self.L1):   
       for J in range(0,self.M1):                                        
@@ -356,7 +316,7 @@ class SolidiPy:
 
   def diflow(self):   
     """
-    THIS SUBROUTINE CALCULATES DISCRETIZATION EQN COEFFS AS PER POWER LAW.
+    THIS FUNCTION CALCULATES DISCRETIZATION EQN COEFFS AS PER POWER LAW.
     """
     self.ACOF = self.DIFF   
     if self.FLOW==0:
@@ -370,7 +330,7 @@ class SolidiPy:
 
   def dense(self):  
     """
-    THIS SUBROUTINE CALCULATES THE DENSITY AT A PARTICULAR TIME
+    THIS FUNCTION CALCULATES THE DENSITY AT A PARTICULAR TIME
     """
     for I in range(0,self.L1):   
       for J in range(0,self.M1):   
@@ -378,7 +338,7 @@ class SolidiPy:
 
   def oldval(self):  
     """
-    THIS SUBROUTINE STORES INITIAL VALUES FOR THE COMING TIMESTEP 
+    THIS FUNCTION STORES INITIAL VALUES FOR THE COMING TIMESTEP 
     """
     for I in range(0,self.L1):   
       for J in range(0,self.M1): 
@@ -389,7 +349,7 @@ class SolidiPy:
  
   def reset(self): 
     """
-    THIS SUBROUTINE RESETS 'ap' AND 'con' TO zero
+    THIS FUNCTION RESETS 'ap' AND 'con' TO zero
     """  
     for J in range(1,self.M2):  
       for I in range(1,self.L2):  
@@ -418,7 +378,7 @@ class SolidiPy:
 
   def solve(self):
     """
-    THIS SUBROUTINE SOLVES DISCRETISATION EQUATIONS BY 'LINE BY LINE TDMA'.
+    THIS FUNCTION SOLVES DISCRETISATION EQUATIONS BY 'LINE BY LINE TDMA'.
     """   
     self.F=np.empty([self.NI,self.NJ], dtype=float)    
     if self.NF == 0:
@@ -563,7 +523,7 @@ class SolidiPy:
   
   def coeff(self):
     """
-    THIS SUBROUTINE FORMS COEFFS. FOR DISCRETISATION EQNS.
+    THIS FUNCTION FORMS COEFFS. FOR DISCRETISATION EQNS.
     """  
     #COEFFICIENTS FOR THE U EQUATION.
     self.ITERL=1   
@@ -1005,12 +965,6 @@ class SolidiPy:
     self.ITLL=self.ITLL+1   
     self.BTIME=self.TIME+self.DT   
     self.TIME=self.TIME+self.DT  
-    if self.TIME > self.TIME2:
-      self.DT=self.DT2
-      self.ISTP=self.ISTP2
-    if self.TIME > self.TIME3:
-      self.DT=self.DT3
-      self.ISTP=self.ISTP3
 
     if self.ITLL%4 == 0:
       self.vect_plot() 
@@ -1030,7 +984,7 @@ class SolidiPy:
   
   def vect_plot(self):  
     """
-    THIS SUBROUTINE FOR VECTOR PLOT
+    THIS FUNCTION FOR VECTOR PLOT
     """ 
     #INTERNAL GRID POINTS 
     for I in range(1,self.L2):   
@@ -1078,7 +1032,7 @@ class SolidiPy:
  
   def printout(self): 
     """
-    THIS SUBROUTINE DIRECTLY GIVES MATLAB PLOTS OF PROBLEM VARIABLES 
+    THIS FUNCTION DIRECTLY GIVES MATLAB PLOTS OF PROBLEM VARIABLES 
     """ 
 
     FILENAME = "t0"+str(int(self.TIME))+".m"
@@ -1154,7 +1108,7 @@ class SolidiPy:
 
   def bound(self):
     """
-    THIS SUBROUTINE GIVES BOUNDARY CONDITIONS FOR THE PROBLEM
+    THIS FUNCTION GIVES BOUNDARY CONDITIONS FOR THE PROBLEM
     """   
     #VELOCITY BOUNDARY CONDITIONS
     for J in range(0,self.M1):
@@ -1187,8 +1141,27 @@ class SolidiPy:
        self.EPSI[I,self.M1-1]=self.EPSI[I,self.M2-1] #TOP FACE
 
 if  __name__ =='__main__': 
-  print("PROGRAM RUNNING") 
-  a = SolidiPy()
+  grid={'xLength':8.89E-2, 
+        'yLength':6.35E-2, 
+        'xGrids':42, 
+        'yGrids':32}  
+                
+  material={'darcyConstant':1.6E6,
+            'density':6093.0,   
+            'conductivity':32.0,
+            'meltingTemp':29.78,
+            'specificHeatCapacity':381.5,
+            'latentHeat':80160.0,
+            'thermalExpansionCoeff':1.2E-4,
+            'viscosity':1.81E-3,
+            'referenceDensity':6095.0}
+  
+  ics={'TINITIAL':28.3} 
+  bcs={'THOT':38} 
+  times={'timeStep':5,
+    'maxIter':1000,
+    'TimeLast':600.0}
+  a = SolidiPy(grid,material,ics,bcs,times)
   a.grid_initialize()
   a.geometry_initialize()
   a.start()
