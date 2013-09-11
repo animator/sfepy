@@ -962,8 +962,7 @@ class SolidiPy:
                 self.VOLD[I,J]=self.V[I,J]
             self.bound()   
 
-    self.ITLL=self.ITLL+1   
-    self.BTIME=self.TIME+self.DT   
+    self.ITLL=self.ITLL+1     
     self.TIME=self.TIME+self.DT  
 
     if self.ITLL%4 == 0:
