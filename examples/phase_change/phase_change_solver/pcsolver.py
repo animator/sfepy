@@ -34,9 +34,14 @@ class SolidiPy:
     self.TINITIAL= ics['TINITIAL']
     self.TMELT=material['meltingTemp']
     self.THOT=bcs['THOT'] 
-    self.ISTP= times['maxIter'] 
-    self.DT=times['timeStep']
-    self.TLAST=times['TimeLast']
+    
+    self.STEPS= times['steps']
+    self.TSTART= times['steps'][0]['starttime'] 
+    self.ISTP= times['steps'][0]['maxIter'] 
+    self.DT=times['steps'][0]['timeStep']
+    self.LENSTEPS=len(times['steps'])
+    self.TLAST=times['timeLast']
+    self.TPRINT=times['printInterval']
     
     self.ERU=0.0001
     self.ERV=0.0001
@@ -367,8 +372,8 @@ class SolidiPy:
           self.GAM[I,J]=self.VISCOSITY    
           if self.NF == 1:
             self.GAM[I,self.M1-1]=0.0 #top face
-            self.TMEAN=self.FY[J]*self.T[I,J]+self.FYM[J]*self.T[I,J-1]
-            self.CON[I,J]=self.RHOREF*self.G*self.BETA*(self.TMEAN-self.TMELT)
+            TMEAN=self.FY[J]*self.T[I,J]+self.FYM[J]*self.T[I,J-1]
+            self.CON[I,J]=self.RHOREF*self.G*self.BETA*(TMEAN-self.TMELT)
 
     if self.NF==3:
       for J in range(0,self.M1):  
@@ -392,121 +397,120 @@ class SolidiPy:
     if self.NF == self.NP:  
       self.F[:,:] = self.P[:,:]  
          
-    self.ISTF=self.IST-1-1   
-    self.JSTF=self.JST-1-1   
-    self.IT1=self.L2+self.IST-2   
-    self.IT2=self.L3+self.IST-2   
-    self.JT1=self.M2+self.JST-2   
-    self.JT2=self.M3+self.JST-2   
+    ISTF=self.IST-1-1   
+    JSTF=self.JST-1-1   
+    IT1=self.L2+self.IST-2   
+    IT2=self.L3+self.IST-2   
+    JT1=self.M2+self.JST-2   
+    JT2=self.M3+self.JST-2   
                                                                         
-    for NT in range(0,self.NTIMES[self.NF]):   
-      self.N=self.NF   
+    for NT in range(0,self.NTIMES[self.NF]):     
       if self.LBLK[self.NF]:   
-        self.PT[self.ISTF]=0.   
-        self.QT[self.ISTF]=0.   
+        self.PT[ISTF]=0.   
+        self.QT[ISTF]=0.   
         for I in range(self.IST-1,self.L2):   
-          self.BL=0.0   
-          self.BLP=0.0   
-          self.BLM=0.0   
-          self.BLC=0.0   
+          BL=0.0   
+          BLP=0.0   
+          BLM=0.0   
+          BLC=0.0   
           for J in range(self.JST-1,self.M2):   
-            self.BL=self.BL+self.AP[I,J]   
+            BL=BL+self.AP[I,J]   
             if J <> self.M2-1:  
-              self.BL=self.BL-self.AJP[I,J]   
+              BL=BL-self.AJP[I,J]   
             if J <> self.JST-1: 
-              self.BL=self.BL-self.AJM[I,J]   
-            self.BLP=self.BLP+self.AIP[I,J]   
-            self.BLM=self.BLM+self.AIM[I,J]   
-            self.BLC=self.BLC+self.CON[I,J]+self.AIP[I,J]*self.F[I+1,J]+self.AIM[I,J]*self.F[I-1,J]+self.AJP[I,J]*self.F[I,J+1]+self.AJM[I,J]*self.F[I,J-1]-self.AP[I,J]*self.F[I,J]        
-          self.DENOM=self.BL-self.PT[I-1]*self.BLM   
-          if abs(self.DENOM/self.BL)< 10.0**(-10):
-            self.DENOM=10.0**30   
-          self.PT[I]=self.BLP/self.DENOM   
-          self.QT[I]=(self.BLC+self.BLM*self.QT[I-1])/self.DENOM   
+              BL=BL-self.AJM[I,J]   
+            BLP=BLP+self.AIP[I,J]   
+            BLM=BLM+self.AIM[I,J]   
+            BLC=BLC+self.CON[I,J]+self.AIP[I,J]*self.F[I+1,J]+self.AIM[I,J]*self.F[I-1,J]+self.AJP[I,J]*self.F[I,J+1]+self.AJM[I,J]*self.F[I,J-1]-self.AP[I,J]*self.F[I,J]        
+          DENOM=BL-self.PT[I-1]*BLM   
+          if abs(DENOM/BL)< 10.0**(-10):
+            DENOM=10.0**30   
+          self.PT[I]=BLP/DENOM   
+          self.QT[I]=(BLC+BLM*self.QT[I-1])/DENOM   
 
-        self.BL=0.0   
+        BL=0.0   
         for II in range(self.IST-1,self.L2):   
-          I=self.IT1-II   
-          self.BL=self.BL*self.PT[I]+self.QT[I]   
+          I=IT1-II   
+          BL=BL*self.PT[I]+self.QT[I]   
           for J in range(self.JST-1,self.M2):   
-            self.F[I,J]=self.F[I,J]+self.BL   
-        self.PT[self.JSTF]=0.0   
-        self.QT[self.JSTF]=0.0   
+            self.F[I,J]=self.F[I,J]+BL   
+        self.PT[JSTF]=0.0   
+        self.QT[JSTF]=0.0   
         for J in range(self.JST-1,self.M2):   
-          self.BL=0.0   
-          self.BLP=0.0   
-          self.BLM=0.0   
-          self.BLC=0.0   
+          BL=0.0   
+          BLP=0.0   
+          BLM=0.0   
+          BLC=0.0   
           for I in range(self.IST-1,self.L2):   
-            self.BL=self.BL+self.AP[I,J]   
+            BL=BL+self.AP[I,J]   
             if I <> self.L2-1: 
-              self.BL=self.BL-self.AIP[I,J]   
+              BL=BL-self.AIP[I,J]   
             if I <> self.IST-1: 
-              self.BL=self.BL-self.AIM[I,J]   
-            self.BLP=self.BLP+self.AJP[I,J]   
-            self.BLM=self.BLM+self.AJM[I,J]   
-            self.BLC=self.BLC+self.CON[I,J]+self.AIP[I,J]*self.F[I+1,J]+self.AIM[I,J]*self.F[I-1,J]+self.AJP[I,J]*self.F[I,J+1]+self.AJM[I,J]*self.F[I,J-1]-self.AP[I,J]*self.F[I,J]        
-          self.DENOM=self.BL-self.PT[J-1]*self.BLM   
-          if abs(self.DENOM/self.BL) < 10.0**(-10): 
-            self.DENOM = 10.0**30   
-          self.PT[J]=self.BLP/self.DENOM   
-          self.QT[J]=(self.BLC+self.BLM*self.QT[J-1])/self.DENOM   
-        self.BL=0.0   
+              BL=BL-self.AIM[I,J]   
+            BLP=BLP+self.AJP[I,J]   
+            BLM=BLM+self.AJM[I,J]   
+            BLC=BLC+self.CON[I,J]+self.AIP[I,J]*self.F[I+1,J]+self.AIM[I,J]*self.F[I-1,J]+self.AJP[I,J]*self.F[I,J+1]+self.AJM[I,J]*self.F[I,J-1]-self.AP[I,J]*self.F[I,J]        
+          DENOM=BL-self.PT[J-1]*BLM   
+          if abs(DENOM/BL) < 10.0**(-10): 
+            DENOM = 10.0**30   
+          self.PT[J]=BLP/DENOM   
+          self.QT[J]=(BLC+BLM*self.QT[J-1])/DENOM   
+        BL=0.0   
         for JJ in range(self.JST-1,self.M2):   
-          J=self.JT1-JJ   
-          self.BL=self.BL*self.PT[J]+self.QT[J]   
+          J=JT1-JJ   
+          BL=BL*self.PT[J]+self.QT[J]   
           for I in range(self.IST-1,self.L2):   
-            self.F[I,J]=self.F[I,J]+self.BL   
+            self.F[I,J]=self.F[I,J]+BL   
                                                                     
       for J in range(self.JST-1,self.M2):   
-        self.PT[self.ISTF]=0.0   
-        self.QT[self.ISTF]=self.F[self.ISTF,J]   
+        self.PT[ISTF]=0.0   
+        self.QT[ISTF]=self.F[ISTF,J]   
         for I in range(self.IST-1,self.L2):   
-          self.DENOM=self.AP[I,J]-self.PT[I-1]*self.AIM[I,J]   
-          self.PT[I]=self.AIP[I,J]/self.DENOM   
+          DENOM=self.AP[I,J]-self.PT[I-1]*self.AIM[I,J]   
+          self.PT[I]=self.AIP[I,J]/DENOM   
           self.TEMP=self.CON[I,J]+self.AJP[I,J]*self.F[I,J+1]+self.AJM[I,J]*self.F[I,J-1]   
-          self.QT[I]=(self.TEMP+self.AIM[I,J]*self.QT[I-1])/self.DENOM   
+          self.QT[I]=(self.TEMP+self.AIM[I,J]*self.QT[I-1])/DENOM   
         for II in range(self.IST-1,self.L2):   
-          I=self.IT1-II   
+          I=IT1-II   
           self.F[I,J]=self.F[I+1,J]*self.PT[I]+self.QT[I]   
 
                                                                         
       for JJ in range(self.JST-1,self.M3):   
-          J=self.JT2-JJ   
-          self.PT[self.ISTF]=0.   
-          self.QT[self.ISTF]=self.F[self.ISTF,J]   
+          J=JT2-JJ   
+          self.PT[ISTF]=0.   
+          self.QT[ISTF]=self.F[ISTF,J]   
           for I in range(self.IST-1,self.L2):   
-            self.DENOM=self.AP[I,J]-self.PT[I-1]*self.AIM[I,J]   
-            self.PT[I]=self.AIP[I,J]/self.DENOM   
+            DENOM=self.AP[I,J]-self.PT[I-1]*self.AIM[I,J]   
+            self.PT[I]=self.AIP[I,J]/DENOM   
             self.TEMP=self.CON[I,J]+self.AJP[I,J]*self.F[I,J+1]+self.AJM[I,J]*self.F[I,J-1]   
-            self.QT[I]=(self.TEMP+self.AIM[I,J]*self.QT[I-1])/self.DENOM         
+            self.QT[I]=(self.TEMP+self.AIM[I,J]*self.QT[I-1])/DENOM         
           for II in range(self.IST-1,self.L2):   
-            I=self.IT1-II   
+            I=IT1-II   
             self.F[I,J]=self.F[I+1,J]*self.PT[I]+self.QT[I]    
                                                                         
       for I in range(self.IST-1,self.L2):   
-        self.PT[self.JSTF]=0.0   
-        self.QT[self.JSTF]=self.F[I,self.JSTF]   
+        self.PT[JSTF]=0.0   
+        self.QT[JSTF]=self.F[I,JSTF]   
         for J in range(self.JST-1,self.M2):   
-          self.DENOM=self.AP[I,J]-self.PT[J-1]*self.AJM[I,J]   
-          self.PT[J]=self.AJP[I,J]/self.DENOM   
+          DENOM=self.AP[I,J]-self.PT[J-1]*self.AJM[I,J]   
+          self.PT[J]=self.AJP[I,J]/DENOM   
           self.TEMP=self.CON[I,J]+self.AIP[I,J]*self.F[I+1,J]+self.AIM[I,J]*self.F[I-1,J]   
-          self.QT[J]=(self.TEMP+self.AJM[I,J]*self.QT[J-1])/self.DENOM   
+          self.QT[J]=(self.TEMP+self.AJM[I,J]*self.QT[J-1])/DENOM   
         for JJ in range(self.JST-1,self.M2):   
-          J=self.JT1-JJ   
+          J=JT1-JJ   
           self.F[I,J]=self.F[I,J+1]*self.PT[J]+self.QT[J]   
                                                                       
       for II in range(self.IST-1,self.L3):   
-        I=self.IT2-II   
-        self.PT[self.JSTF]=0.0   
-        self.QT[self.JSTF]=self.F[I,self.JSTF]   
+        I=IT2-II   
+        self.PT[JSTF]=0.0   
+        self.QT[JSTF]=self.F[I,JSTF]   
         for J in range(self.JST-1,self.M2):   
-          self.DENOM=self.AP[I,J]-self.PT[J-1]*self.AJM[I,J]   
-          self.PT[J]=self.AJP[I,J]/self.DENOM   
+          DENOM=self.AP[I,J]-self.PT[J-1]*self.AJM[I,J]   
+          self.PT[J]=self.AJP[I,J]/DENOM   
           self.TEMP=self.CON[I,J]+self.AIP[I,J]*self.F[I+1,J]+self.AIM[I,J]*self.F[I-1,J]   
-          self.QT[J]=(self.TEMP+self.AJM[I,J]*self.QT[J-1])/self.DENOM   
+          self.QT[J]=(self.TEMP+self.AJM[I,J]*self.QT[J-1])/DENOM   
         for JJ in range(self.JST-1,self.M2):   
-          J=self.JT1-JJ   
+          J=JT1-JJ   
           self.F[I,J]=self.F[I,J+1]*self.PT[J]+self.QT[J]   
    
     if self.NF == 0:
@@ -528,8 +532,8 @@ class SolidiPy:
     #COEFFICIENTS FOR THE U EQUATION.
     self.ITERL=1   
     self.ZERO=0.0   
-    self.LCONV = False  
-    while self.LCONV == False:
+    self.LCONV = 0  
+    while self.LCONV == 0:
       self.reset()  
       self.NF=0   
       if self.LSOLVE[self.NF]:   
@@ -538,9 +542,9 @@ class SolidiPy:
         self.gamsor()   
         self.REL=1.0-self.RELAX[self.NF]   
         for I in range(2,self.L2):   
-          self.FL=self.XCVI[I]*self.V[I,1]*self.RHO[I,0]   
-          self.FLM=self.XCVIP[I-1]*self.V[I-1,1]*self.RHO[I-1,0]   
-          self.FLOW=self.R[0]*(self.FL+self.FLM)   
+          FL=self.XCVI[I]*self.V[I,1]*self.RHO[I,0]   
+          FLM=self.XCVIP[I-1]*self.V[I-1,1]*self.RHO[I-1,0]   
+          self.FLOW=self.R[0]*(FL+FLM)   
           self.DIFF=self.R[0]*(self.XCVI[I]*self.GAM[I,0]+self.XCVIP[I-1]*self.GAM[I-1,0])/self.YDIF[1]  
           self.diflow()   
           self.AJM[I,1]=self.ACOF+max(self.ZERO,self.FLOW)   
@@ -552,9 +556,9 @@ class SolidiPy:
           self.AIM[2,J]=self.ACOF+max(self.ZERO,self.FLOW)   
           for I in range(2,self.L2):   
             if I <> self.L2-1:  
-                self.FL=self.U[I,J]*(self.FX[I]*self.RHO[I,J]+self.FXM[I]*self.RHO[I-1,J])   
-                self.FLP=self.U[I+1,J]*(self.FX[I+1]*self.RHO[I+1,J]+self.FXM[I+1]*self.RHO[I,J])   
-                self.FLOW=self.ARX[J]*0.5*(self.FL+self.FLP)   
+                FL=self.U[I,J]*(self.FX[I]*self.RHO[I,J]+self.FXM[I]*self.RHO[I-1,J])   
+                FLP=self.U[I+1,J]*(self.FX[I+1]*self.RHO[I+1,J]+self.FXM[I+1]*self.RHO[I,J])   
+                self.FLOW=self.ARX[J]*0.5*(FL+FLP)   
                 self.DIFF=self.ARX[J]*self.GAM[I,J]/(self.XCV[I]*self.SX[J])   
             else:   
                 self.FLOW=self.ARX[J]*self.U[self.L1-1,J]*self.RHO[self.L1-1,J]   
@@ -563,16 +567,16 @@ class SolidiPy:
             self.AIM[I+1,J]=self.ACOF+max(self.ZERO,self.FLOW)   
             self.AIP[I,J]=self.AIM[I+1,J]-self.FLOW   
             if J <> self.M2-1:   
-              self.FL=self.XCVI[I]*self.V[I,J+1]*(self.FY[J+1]*self.RHO[I,J+1]+self.FYM[J+1]*self.RHO[I,J])   
-              self.FLM=self.XCVIP[I-1]*self.V[I-1,J+1]*(self.FY[J+1]*self.RHO[I-1,J+1]+self.FYM[J+1]*self.RHO[I-1,J])                                                        
-              self.GM=self.GAM[I,J]*self.GAM[I,J+1]/(self.YCV[J]*self.GAM[I,J+1]+self.YCV[J+1]*self.GAM[I,J]+10.0**(-30))*self.XCVI[I]                                                   
-              self.GMM=self.GAM[I-1,J]*self.GAM[I-1,J+1]/(self.YCV[J]*self.GAM[I-1,J+1]+self.YCV[J+1]*self.GAM[I-1,J]+10.0**(-30))*self.XCVIP[I-1]                                      
-              self.DIFF=self.RMN[J+1]*2.0*(self.GM+self.GMM)   
+              FL=self.XCVI[I]*self.V[I,J+1]*(self.FY[J+1]*self.RHO[I,J+1]+self.FYM[J+1]*self.RHO[I,J])   
+              FLM=self.XCVIP[I-1]*self.V[I-1,J+1]*(self.FY[J+1]*self.RHO[I-1,J+1]+self.FYM[J+1]*self.RHO[I-1,J])                                                        
+              GM=self.GAM[I,J]*self.GAM[I,J+1]/(self.YCV[J]*self.GAM[I,J+1]+self.YCV[J+1]*self.GAM[I,J]+10.0**(-30))*self.XCVI[I]                                                   
+              GMM=self.GAM[I-1,J]*self.GAM[I-1,J+1]/(self.YCV[J]*self.GAM[I-1,J+1]+self.YCV[J+1]*self.GAM[I-1,J]+10.0**(-30))*self.XCVIP[I-1]                                      
+              self.DIFF=self.RMN[J+1]*2.0*(GM+GMM)   
             else:
-              self.FL=self.XCVI[I]*self.V[I,self.M1-1]*self.RHO[I,self.M1-1]   
-              self.FLM=self.XCVIP[I-1]*self.V[I-1,self.M1-1]*self.RHO[I-1,self.M1-1]   
+              FL=self.XCVI[I]*self.V[I,self.M1-1]*self.RHO[I,self.M1-1]   
+              FLM=self.XCVIP[I-1]*self.V[I-1,self.M1-1]*self.RHO[I-1,self.M1-1]   
               self.DIFF=self.R[self.M1-1]*(self.XCVI[I]*self.GAM[I,self.M1-1]+self.XCVIP[I-1]*self.GAM[I-1,self.M1-1])/self.YDIF[self.M1-1]   
-            self.FLOW=self.RMN[J+1]*(self.FL+self.FLM)   
+            self.FLOW=self.RMN[J+1]*(FL+FLM)   
             self.diflow()   
             self.AJM[I,J+1]=self.ACOF+max(self.ZERO,self.FLOW)   
             self.AJP[I,J]=self.AJM[I,J+1]-self.FLOW   
@@ -584,8 +588,8 @@ class SolidiPy:
             
             #CARMAN-KOZENY RELATION FOR POROUS MEDIA  EFFECTS
             self.AP0[I,J]=self.RHO[I,J]*self.VOL/self.DT     
-            self.EPMEAN=self.FX[I]*self.EPSI[I,J]+self.FXM[I]*self.EPSI[I-1,J]
-            self.AP[I,J]=self.AP[I,J]+1.0*self.DARCYCONST*(1.0-self.EPMEAN)**2*self.VOL/(self.EPMEAN**3+10.0**(-3))
+            EPMEAN=self.FX[I]*self.EPSI[I,J]+self.FXM[I]*self.EPSI[I-1,J]
+            self.AP[I,J]=self.AP[I,J]+1.0*self.DARCYCONST*(1.0-EPMEAN)**2*self.VOL/(EPMEAN**3+10.0**(-3))
             self.CON[I,J]=self.CON[I,J]*self.VOL+self.REL*self.AP[I,J]*self.U[I,J]   
             self.DU[I,J]=self.VOL/(self.XDIF[I]*self.SX[J])  
             self.DU[I,J]=self.DU[I,J]/self.AP[I,J]  
@@ -612,32 +616,32 @@ class SolidiPy:
         self.AJM[I,2]=self.ACOF+ max(self.ZERO,self.FLOW) 
 
         for J in range(2,self.M2):   
-          self.FL=self.ARXJ[J]*self.U[1,J]*self.RHO[0,J]   
-          self.FLM=self.ARXJP[J-1]*self.U[1,J-1]*self.RHO[0,J-1]   
-          self.FLOW=self.FL+self.FLM   
+          FL=self.ARXJ[J]*self.U[1,J]*self.RHO[0,J]   
+          FLM=self.ARXJP[J-1]*self.U[1,J-1]*self.RHO[0,J-1]   
+          self.FLOW=FL+FLM   
           self.DIFF=(self.ARXJ[J]*self.GAM[0,J]+self.ARXJP[J-1]*self.GAM[0,J-1])/(self.XDIF[1]*self.SXMN[J])   
           self.diflow()
           self.AIM[1,J]=self.ACOF+max(self.ZERO,self.FLOW)   
           for I in range(1,self.L2):   
             if I <> self.L2-1:   
-              self.FL=self.ARXJ[J]*self.U[I+1,J]*(self.FX[I+1]*self.RHO[I+1,J]+self.FXM[I+1]*self.RHO[I,J])   
-              self.FLM=self.ARXJP[J-1]*self.U[I+1,J-1]*(self.FX[I+1]*self.RHO[I+1,J-1]+self.FXM[I+1]*self.RHO[I,J-1])                                                       
-              self.GM=self.GAM[I,J]*self.GAM[I+1,J]/(self.XCV[I]*self.GAM[I+1,J]+self.XCV[I+1]*self.GAM[I,J]+ 10.0**(-30))*self.ARXJ[J]                                                    
-              self.GMM=self.GAM[I,J-1]*self.GAM[I+1,J-1]/(self.XCV[I]*self.GAM[I+1,J-1]+self.XCV[I+1]*self.GAM[I,J-1]+ 10.0**(-30))*self.ARXJP[J-1]                                    
-              self.DIFF=2.0*(self.GM+self.GMM)/self.SXMN[J]   
+              FL=self.ARXJ[J]*self.U[I+1,J]*(self.FX[I+1]*self.RHO[I+1,J]+self.FXM[I+1]*self.RHO[I,J])   
+              FLM=self.ARXJP[J-1]*self.U[I+1,J-1]*(self.FX[I+1]*self.RHO[I+1,J-1]+self.FXM[I+1]*self.RHO[I,J-1])                                                       
+              GM=self.GAM[I,J]*self.GAM[I+1,J]/(self.XCV[I]*self.GAM[I+1,J]+self.XCV[I+1]*self.GAM[I,J]+ 10.0**(-30))*self.ARXJ[J]                                                    
+              GMM=self.GAM[I,J-1]*self.GAM[I+1,J-1]/(self.XCV[I]*self.GAM[I+1,J-1]+self.XCV[I+1]*self.GAM[I,J-1]+ 10.0**(-30))*self.ARXJP[J-1]                                    
+              self.DIFF=2.0*(GM+GMM)/self.SXMN[J]   
             else:   
-              self.FL=self.ARXJ[J]*self.U[self.L1-1,J]*self.RHO[self.L1-1,J]   
-              self.FLM=self.ARXJP[J-1]*self.U[self.L1-1,J-1]*self.RHO[self.L1-1,J-1]   
+              FL=self.ARXJ[J]*self.U[self.L1-1,J]*self.RHO[self.L1-1,J]   
+              FLM=self.ARXJP[J-1]*self.U[self.L1-1,J-1]*self.RHO[self.L1-1,J-1]   
               self.DIFF=(self.ARXJ[J]*self.GAM[self.L1-1,J]+self.ARXJP[J-1]*self.GAM[self.L1-1,J-1])/(self.XDIF[self.L1-1]*self.SXMN[J])   
-            self.FLOW=self.FL+self.FLM   
+            self.FLOW=FL+FLM   
             self.diflow()   
             self.AIM[I+1,J]=self.ACOF+ max(self.ZERO,self.FLOW)   
             self.AIP[I,J]=self.AIM[I+1,J]-self.FLOW   
             if J <> self.M2-1:   
               self.AREA=self.R[J]*self.XCV[I]   
-              self.FL=self.V[I,J]*(self.FY[J]*self.RHO[I,J]+self.FYM[J]*self.RHO[I,J-1])*self.RMN[J]   
-              self.FLP=self.V[I,J+1]*(self.FY[J+1]*self.RHO[I,J+1]+self.FYM[J+1]*self.RHO[I,J])*self.RMN[J+1]   
-              self.FLOW=(self.FV[J]*self.FL+self.FVP[J]*self.FLP)*self.XCV[I]   
+              FL=self.V[I,J]*(self.FY[J]*self.RHO[I,J]+self.FYM[J]*self.RHO[I,J-1])*self.RMN[J]   
+              FLP=self.V[I,J+1]*(self.FY[J+1]*self.RHO[I,J+1]+self.FYM[J+1]*self.RHO[I,J])*self.RMN[J+1]   
+              self.FLOW=(self.FV[J]*FL+self.FVP[J]*FLP)*self.XCV[I]   
               self.DIFF=self.AREA*self.GAM[I,J]/self.YCV[J]    
             else:
               self.AREA=self.R[self.M1-1]*self.XCV[I]   
@@ -647,21 +651,21 @@ class SolidiPy:
             self.AJM[I,J+1]=self.ACOF+ max(self.ZERO,self.FLOW)   
             self.AJP[I,J]=self.AJM[I,J+1]-self.FLOW   
             self.VOL=self.YCVRS[J]*self.XCV[I]   
-            self.SXT=self.SX[J]   
+            SXT=self.SX[J]   
             if J == self.M2-1:
-              self.SXT=self.SX[self.M1-1]   
-            self.SXB=self.SX[J-1]   
+              SXT=self.SX[self.M1-1]   
+            SXB=self.SX[J-1]   
             if J == 2:
-              self.SXB=self.SX[0]   
-            self.APT=(self.ARXJ[J]*self.RHO[I,J]*0.5*(self.SXT+self.SXMN[J])+self.ARXJP[J-1]*self.RHO[I,J-1]*0.5*(self.SXB+self.SXMN[J]))/(self.YCVRS[J]*self.DT)                                    
+              SXB=self.SX[0]   
+            self.APT=(self.ARXJ[J]*self.RHO[I,J]*0.5*(SXT+self.SXMN[J])+self.ARXJP[J-1]*self.RHO[I,J-1]*0.5*(SXB+self.SXMN[J]))/(self.YCVRS[J]*self.DT)                                    
             self.AP[I,J]=self.AP[I,J]-self.APT   
             self.CON[I,J]=self.CON[I,J]+self.APT*self.VO[I,J]   
             self.AP[I,J]=(-self.AP[I,J]*self.VOL+self.AIP[I,J]+self.AIM[I,J]+self.AJP[I,J]+self.AJM[I,J])/self.RELAX[self.NF]                                                          
             
             #THIS IS CORMAN RELATION FOR POROUS MEDIA EFFECTS
             self.AP0[I,J]=self.RHO[I,J]*self.VOL/self.DT 
-            self.EPMEAN=self.FY[J]*self.EPSI[I,J]+self.FYM[J]*self.EPSI[I,J-1]
-            self.AP[I,J]=self.AP[I,J]+1.0*self.DARCYCONST*(1.0-self.EPMEAN)**2*self.VOL/(self.EPMEAN**3+10.0**(-3))
+            EPMEAN=self.FY[J]*self.EPSI[I,J]+self.FYM[J]*self.EPSI[I,J-1]
+            self.AP[I,J]=self.AP[I,J]+1.0*self.DARCYCONST*(1.0-EPMEAN)**2*self.VOL/(EPMEAN**3+10.0**(-3))
             self.CON[I,J]=self.CON[I,J]*self.VOL+self.REL*self.AP[I,J]*self.V[I,J]   
             self.DV[I,J]=self.VOL/self.YDIF[J]  
             self.DV[I,J]=self.DV[I,J]/self.AP[I,J]  
@@ -694,36 +698,36 @@ class SolidiPy:
             self.CON[I,J]=self.CON[I,J]*self.VOL   
         
         for I in range(1,self.L2):   
-          self.ARHO=self.R[0]*self.XCV[I]*self.RHO[I,0]   
-          self.CON[I,1]=self.CON[I,1]+self.ARHO*self.V[I,1]   
+          ARHO=self.R[0]*self.XCV[I]*self.RHO[I,0]   
+          self.CON[I,1]=self.CON[I,1]+ARHO*self.V[I,1]   
           self.AJM[I,1]=0.0   
               
         for J in range(1,self.M2):
-          self.ARHO=self.ARX[J]*self.RHO[0,J]   
-          self.CON[1,J]=self.CON[1,J]+self.ARHO*self.U[1,J]   
+          ARHO=self.ARX[J]*self.RHO[0,J]   
+          self.CON[1,J]=self.CON[1,J]+ARHO*self.U[1,J]   
           self.AIM[1,J]=0.0   
           for I in range(1,self.L2):  
             if I<>self.L2-1:   
-              self.ARHO=self.ARX[J]*(self.FX[I+1]*self.RHO[I+1,J]+self.FXM[I+1]*self.RHO[I,J])   
-              self.FLOW=self.ARHO*self.UHAT[I+1,J]   
+              ARHO=self.ARX[J]*(self.FX[I+1]*self.RHO[I+1,J]+self.FXM[I+1]*self.RHO[I,J])   
+              self.FLOW=ARHO*self.UHAT[I+1,J]   
               self.CON[I,J]=self.CON[I,J]-self.FLOW   
               self.CON[I+1,J]=self.CON[I+1,J]+self.FLOW   
-              self.AIP[I,J]=self.ARHO*self.DU[I+1,J]   
+              self.AIP[I,J]=ARHO*self.DU[I+1,J]   
               self.AIM[I+1,J]=self.AIP[I,J]   
             else:  
-              self.ARHO=self.ARX[J]*self.RHO[self.L1-1,J]   
-              self.CON[I,J]=self.CON[I,J]-self.ARHO*self.U[self.L1-1,J]   
+              ARHO=self.ARX[J]*self.RHO[self.L1-1,J]   
+              self.CON[I,J]=self.CON[I,J]-ARHO*self.U[self.L1-1,J]   
               self.AIP[I,J]=0.0   
             if J<>self.M2-1:   
-              self.ARHO=self.RMN[J+1]*self.XCV[I]*(self.FY[J+1]*self.RHO[I,J+1]+self.FYM[J+1]*self.RHO[I,J])   
-              self.FLOW=self.ARHO*self.VHAT[I,J+1]   
+              ARHO=self.RMN[J+1]*self.XCV[I]*(self.FY[J+1]*self.RHO[I,J+1]+self.FYM[J+1]*self.RHO[I,J])   
+              self.FLOW=ARHO*self.VHAT[I,J+1]   
               self.CON[I,J]=self.CON[I,J]-self.FLOW   
               self.CON[I,J+1]=self.CON[I,J+1]+self.FLOW   
-              self.AJP[I,J]=self.ARHO*self.DV[I,J+1]   
+              self.AJP[I,J]=ARHO*self.DV[I,J+1]   
               self.AJM[I,J+1]=self.AJP[I,J]   
             else:   
-              self.ARHO=self.RMN[self.M1-1]*self.XCV[I]*self.RHO[I,self.M1-1]   
-              self.CON[I,J]=self.CON[I,J]-self.ARHO*self.V[I,self.M1-1]   
+              ARHO=self.RMN[self.M1-1]*self.XCV[I]*self.RHO[I,self.M1-1]   
+              self.CON[I,J]=self.CON[I,J]-ARHO*self.V[I,self.M1-1]   
               self.AJP[I,J]=0.0   
             self.AP[I,J]=self.AIP[I,J]+self.AIM[I,J]+self.AJP[I,J]+self.AJM[I,J]     
 
@@ -800,40 +804,40 @@ class SolidiPy:
         self.AJM[:,:] = self.COF[:,:,4]  
          
         self.gamsor()  
-        self.SMAX=0.   
-        self.SSUM=0.   
+        SMAX=0.   
+        SSUM=0.   
         for J in range(1,self.M2):   
           for I in range(1,self.L2):   
             self.VOL=self.YCVR[J]*self.XCV[I]   
             self.CON[I,J]=self.CON[I,J]*self.VOL   
         for I in range(1,self.L2):  
-          self.ARHO=self.R[0]*self.XCV[I]*self.RHO[I,0]   
-          self.CON[I,1]=self.CON[I,1]+self.ARHO*self.V[I,1]   
+          ARHO=self.R[0]*self.XCV[I]*self.RHO[I,0]   
+          self.CON[I,1]=self.CON[I,1]+ARHO*self.V[I,1]   
     
         for J in range(1,self.M2): 
-          self.ARHO=self.ARX[J]*self.RHO[0,J]   
-          self.CON[1,J]=self.CON[1,J]+self.ARHO*self.U[1,J]   
+          ARHO=self.ARX[J]*self.RHO[0,J]   
+          self.CON[1,J]=self.CON[1,J]+ARHO*self.U[1,J]   
           for I in range(1,self.L2):  
             if I<>self.L2-1:   
-              self.ARHO=self.ARX[J]*(self.FX[I+1]*self.RHO[I+1,J]+self.FXM[I+1]*self.RHO[I,J])   
-              self.FLOW=self.ARHO*self.U[I+1,J]   
+              ARHO=self.ARX[J]*(self.FX[I+1]*self.RHO[I+1,J]+self.FXM[I+1]*self.RHO[I,J])   
+              self.FLOW=ARHO*self.U[I+1,J]   
               self.CON[I,J]=self.CON[I,J]-self.FLOW   
               self.CON[I+1,J]=self.CON[I+1,J]+self.FLOW   
             else:   
-              self.ARHO=self.ARX[J]*self.RHO[self.L1-1,J]   
-              self.CON[I,J]=self.CON[I,J]-self.ARHO*self.U[self.L1-1,J]   
+              ARHO=self.ARX[J]*self.RHO[self.L1-1,J]   
+              self.CON[I,J]=self.CON[I,J]-ARHO*self.U[self.L1-1,J]   
             if J<>self.M2-1:   
-              self.ARHO=self.RMN[J+1]*self.XCV[I]*(self.FY[J+1]*self.RHO[I,J+1]+self.FYM[J+1]*self.RHO[I,J])   
-              self.FLOW=self.ARHO*self.V[I,J+1]   
+              ARHO=self.RMN[J+1]*self.XCV[I]*(self.FY[J+1]*self.RHO[I,J+1]+self.FYM[J+1]*self.RHO[I,J])   
+              self.FLOW=ARHO*self.V[I,J+1]   
               self.CON[I,J]=self.CON[I,J]-self.FLOW   
               self.CON[I,J+1]=self.CON[I,J+1]+self.FLOW   
             else: 
-              self.ARHO=self.RMN[self.M1-1]*self.XCV[I]*self.RHO[I,self.M1-1]   
-              self.CON[I,J]=self.CON[I,J]-self.ARHO*self.V[I,self.M1-1]   
+              ARHO=self.RMN[self.M1-1]*self.XCV[I]*self.RHO[I,self.M1-1]   
+              self.CON[I,J]=self.CON[I,J]-ARHO*self.V[I,self.M1-1]   
             self.AP[I,J]=self.AIP[I,J]+self.AIM[I,J]+self.AJP[I,J]+self.AJM[I,J]   
             self.PC[I,J]=0.0   
-            self.SMAX= max(self.SMAX,abs(self.CON[I,J]))   
-            self.SSUM=self.SSUM+self.CON[I,J]   
+            SMAX= max(SMAX,abs(self.CON[I,J]))   
+            SSUM=SSUM+self.CON[I,J]   
         self.solve()   
         
         #COME HERE TO CORRECT THE VELOCITIES. 
@@ -943,17 +947,17 @@ class SolidiPy:
         DELVMX=0.0  
       
       if self.TIME < self.TLAST:  
-        print 'TIME=',self.TIME,'ITERL=',self.ITERL,'TMX=',TMX,'UMX=',UMX,'VMX=',VMX
-        print 'DELTMX=',DELTMX,'DELUMX=',DELUMX,'DELVMX=',DELVMX   
+        print('TIME=%f ITERL=%f TMX=%f UMX=%f VMX=%f '%(self.TIME,self.ITERL,TMX,UMX,VMX))
+        print('DELTMX=%f DELUMX=%f DELVMX=%f'%(DELTMX,DELUMX,DELVMX))   
       #print DELT,DELU,DELV,self.ITERL
       if DELT < self.ERT and DELU < self.ERU and DELV < self.ERV:  
-        self.LCONV=True  
+        self.LCONV=1  
           
       if not(self.LCONV):  
         if DELTMX> self.ERT or DELUMX>self.ERU or DELVMX>self.ERV:
           if self.ITERL==self.ISTP:
-            print 'EXCEEDED MAX. NO. OF ITERATIONS'
-            self.LCONV=True
+            print('EXCEEDED MAX. NO. OF ITERATIONS')
+            self.LCONV=1
           else:
             self.ITERL=self.ITERL+1   
             for I in range(1,self.L1):   
@@ -962,20 +966,25 @@ class SolidiPy:
                 self.VOLD[I,J]=self.V[I,J]
             self.bound()   
 
-    self.ITLL=self.ITLL+1     
+    #if self.TIME%self.TPRINT == 0:
+    self.vect_plot() 
+    self.printout()
+
+    self.ITLL=self.ITLL+1   
     self.TIME=self.TIME+self.DT  
 
-    if self.ITLL%4 == 0:
-      self.vect_plot() 
-      self.printout() 
-    
-    self.BBK=self.TIME % float(self.NTIME)   
-    if self.BBK<0.00001:   
+    for STEPINDEX in range(self.LENSTEPS):
+      if self.TIME > self.STEPS[STEPINDEX]['starttime']: 
+        self.ISTP= self.STEPS[STEPINDEX]['maxIter'] 
+        self.DT=self.STEPS[STEPINDEX]['timeStep']
+
+    BBK=self.TIME % float(self.NTIME)   
+    if BBK<0.00001:   
       self.ITER=self.ITER+1   
       self.bound()   
 
     if self.TIME >= self.TLAST:
-      self.LSTOP=True   
+      self.LSTOP=1   
     for I in range(1,self.L1):   
       for J in range(1,self.M1):  
         self.UOLD[I,J]=self.U[I,J]   
@@ -1154,12 +1163,15 @@ if  __name__ =='__main__':
             'thermalExpansionCoeff':1.2E-4,
             'viscosity':1.81E-3,
             'referenceDensity':6095.0}
-  
+
   ics={'TINITIAL':28.3} 
   bcs={'THOT':38} 
-  times={'timeStep':5,
-    'maxIter':1000,
-    'TimeLast':600.0}
+  times={'steps':({'starttime':0,'timeStep':5,'maxIter':2},
+                  {'starttime':40,'timeStep':10,'maxIter':2},
+                  {'starttime':150,'timeStep':10,'maxIter':2}),               
+        'timeLast':600.0,
+        'printInterval':20}
+
   a = SolidiPy(grid,material,ics,bcs,times)
   a.grid_initialize()
   a.geometry_initialize()
@@ -1169,4 +1181,4 @@ if  __name__ =='__main__':
     a.bound()   
     a.oldval() 
     a.coeff()  
-  print("PROGRAM FINISHED")   
+  print("PROGRAM FINISHED")  
