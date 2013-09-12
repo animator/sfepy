@@ -1040,7 +1040,7 @@ class PhaseChangeSolver:
  
   def printout(self,output_dir): 
     """
-    THIS FUNCTION DIRECTLY GIVES MATLAB PLOTS OF PROBLEM VARIABLES 
+    THIS FUNCTION DIRECTLY GIVES vtk FILE
     """ 
 
     t = int(self.TIME)
