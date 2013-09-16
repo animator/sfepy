@@ -1,10 +1,34 @@
-import numpy as np
+import numpy as nm
 import math
+from sfepy.base.base import Struct
 
 class PhaseChangeSolver:
-  def __init__(self,grid,material,ics,bcs,times):  
-    NI= self.NI=grid['xGrids'] 
-    NJ= self.NJ=grid['yGrids']   
+  """
+  The solver class for performing calculation for phase change simulations.
+
+  """
+  def __init__(self,conf):  
+    """
+    Create a MeshIO instance according to the kind of `filename`.
+
+    Parameters
+    ----------
+    filename : str, function or MeshIO subclass instance
+        The name of the mesh file. It can be also a user-supplied function
+        accepting two arguments: `mesh`, `mode`, where `mesh` is a Mesh
+        instance and `mode` is one of 'read','write', or a MeshIO subclass
+        instance.
+    prefix_dir : str
+        The directory name to prepend to `filename`.
+
+    Returns
+    -------
+    io : MeshIO subclass instance
+        The MeshIO subclass instance corresponding to the kind of `filename`.
+    """
+    NI= self.NI=conf.grid['xGrids'] 
+    NJ= self.NJ=conf.grid['yGrids']
+    self.vertices = NI*NJ   
     NIJ= self.NIJ=max(self.NI,self.NJ)  
     NFMAX= self.NFMAX=10   
     NP= self.NP=10   
@@ -16,108 +40,109 @@ class PhaseChangeSolver:
     self.MODE=1   
     self.TIME=0  
 
-    self.XL= grid['xLength']
-    self.YL= grid['yLength']     
-    L1= self.L1= grid['xGrids']       
-    M1= self.M1= grid['yGrids']  
+    self.XL= conf.grid['xLength']
+    self.YL= conf.grid['yLength']     
+    L1= self.L1= conf.grid['xGrids']       
+    M1= self.M1= conf.grid['yGrids']  
     self.NTIME= 1 
     self.NGRID= 1
-    self.DARCYCONST= material['darcyConstant']
-    self.RHOCON= material['density']
-    self.TK= material['conductivity']
-    self.CP= material['specificHeatCapacity']
-    self.ALATENT= material['latentHeat']
-    self.BETA= material['thermalExpansionCoeff']
-    self.VISCOSITY= material['viscosity']
-    self.RHOREF= material['referenceDensity']
+
+    mat = conf.materials.keys()[0]
+    self.DARCYCONST= conf.materials[mat].values['darcyConstant']
+    self.RHOCON= conf.materials[mat].values['density']
+    self.TK= conf.materials[mat].values['conductivity']
+    self.CP= conf.materials[mat].values['specificHeatCapacity']
+    self.ALATENT= conf.materials[mat].values['latentHeat']
+    self.BETA= conf.materials[mat].values['thermalExpansionCoeff']
+    self.VISCOSITY= conf.materials[mat].values['viscosity']
+    self.RHOREF= conf.materials[mat].values['referenceDensity']
+    self.TMELT=conf.materials[mat].values['meltingTemp']    
     self.G=9.81  
-    self.TINITIAL= ics['TINITIAL']
-    self.TMELT=material['meltingTemp']
-    self.THOT=bcs['THOT'] 
+    self.TINITIAL= conf.tinit['T_INITIAL']
+    self.THOT=conf.tbcs['T_HOT'] 
     
-    self.STEPS= times['steps']
-    self.TSTART= times['steps'][0]['starttime'] 
-    self.ISTP= times['steps'][0]['maxIter'] 
-    self.DT=times['steps'][0]['timeStep']
-    self.LENSTEPS=len(times['steps'])
-    self.TLAST=times['timeLast']
-    self.TPRINT=times['printInterval']
+    self.STEPS= conf.times['steps']
+    self.TSTART= conf.times['steps'][0]['starttime'] 
+    self.ISTP= conf.times['steps'][0]['maxIter'] 
+    self.DT=conf.times['steps'][0]['timeStep']
+    self.LENSTEPS=len(conf.times['steps'])
+    self.TLAST=conf.times['timeLast']
     
     self.ERU=0.0001
     self.ERV=0.0001
     self.ERT=0.0001 
     self.ARELAX=0.2 # RELAXATION FOR ENTHALPY ONLY
 
-    self.X=np.empty(NI, dtype=float)
-    self.XU=np.empty(NI, dtype=float)
-    self.XDIF=np.empty(NI, dtype=float)
-    self.XCV=np.empty(NI, dtype=float)
-    self.XCVS=np.empty(NI, dtype=float)
-    self.FV=np.empty(NI, dtype=float)
-    self.FVP=np.empty(NI, dtype=float)
-    self.FX=np.empty(NI, dtype=float)
-    self.FXM=np.empty(NI, dtype=float)
-    self.XCVI=np.empty(NI, dtype=float)
-    self.XCVIP=np.empty(NI, dtype=float)
+    self.X=nm.empty(NI, dtype=float)
+    self.XU=nm.empty(NI, dtype=float)
+    self.XDIF=nm.empty(NI, dtype=float)
+    self.XCV=nm.empty(NI, dtype=float)
+    self.XCVS=nm.empty(NI, dtype=float)
+    self.FV=nm.empty(NI, dtype=float)
+    self.FVP=nm.empty(NI, dtype=float)
+    self.FX=nm.empty(NI, dtype=float)
+    self.FXM=nm.empty(NI, dtype=float)
+    self.XCVI=nm.empty(NI, dtype=float)
+    self.XCVIP=nm.empty(NI, dtype=float)
 
-    self.Y=np.empty(NJ, dtype=float)
-    self.YV=np.empty(NJ, dtype=float)
-    self.YDIF=np.empty(NJ, dtype=float)
-    self.YCV=np.empty(NJ, dtype=float)
-    self.YCVS=np.empty(NJ, dtype=float)
-    self.YCVR=np.empty(NJ, dtype=float)
-    self.YCVRS=np.empty(NJ, dtype=float)
-    self.ARX=np.empty(NJ, dtype=float)
-    self.ARXJ=np.empty(NJ, dtype=float)
-    self.ARXJP=np.empty(NJ, dtype=float)
-    self.R=np.empty(NJ, dtype=float)
-    self.RMN=np.empty(NJ, dtype=float)
-    self.SX=np.empty(NJ, dtype=float)
-    self.SXMN=np.empty(NJ, dtype=float)
-    self.FY=np.empty(NJ, dtype=float)
-    self.FYM=np.empty(NJ, dtype=float)  
+    self.Y=nm.empty(NJ, dtype=float)
+    self.YV=nm.empty(NJ, dtype=float)
+    self.YDIF=nm.empty(NJ, dtype=float)
+    self.YCV=nm.empty(NJ, dtype=float)
+    self.YCVS=nm.empty(NJ, dtype=float)
+    self.YCVR=nm.empty(NJ, dtype=float)
+    self.YCVRS=nm.empty(NJ, dtype=float)
+    self.ARX=nm.empty(NJ, dtype=float)
+    self.ARXJ=nm.empty(NJ, dtype=float)
+    self.ARXJP=nm.empty(NJ, dtype=float)
+    self.R=nm.empty(NJ, dtype=float)
+    self.RMN=nm.empty(NJ, dtype=float)
+    self.SX=nm.empty(NJ, dtype=float)
+    self.SXMN=nm.empty(NJ, dtype=float)
+    self.FY=nm.empty(NJ, dtype=float)
+    self.FYM=nm.empty(NJ, dtype=float)  
 
-    self.PT=np.empty(NIJ, dtype=float) 
-    self.QT=np.empty(NIJ, dtype=float)   
+    self.PT=nm.empty(NIJ, dtype=float) 
+    self.QT=nm.empty(NIJ, dtype=float)   
 
-    self.U=np.empty([NI,NJ], dtype=float)  
-    self.V=np.empty([NI,NJ], dtype=float)  
-    self.PC=np.empty([NI,NJ], dtype=float)  
-    self.T=np.empty([NI,NJ], dtype=float)  
-    self.P=np.empty([NI,NJ], dtype=float)  
-    self.RHO=np.empty([NI,NJ], dtype=float)  
-    self.GAM=np.empty([NI,NJ], dtype=float)  
-    self.CON=np.empty([NI,NJ], dtype=float)  
-    self.Ur=np.empty([NI,NJ], dtype=float)  
-    self.Vr=np.empty([NI,NJ], dtype=float)    
-    self.AIP=np.empty([NI,NJ], dtype=float)  
-    self.AIM=np.empty([NI,NJ], dtype=float)  
-    self.AJP=np.empty([NI,NJ], dtype=float)  
-    self.AJM=np.empty([NI,NJ], dtype=float)  
-    self.AP=np.empty([NI,NJ], dtype=float)  
-    self.AP0=np.empty([NI,NJ], dtype=float)  
-    self.AP1=np.empty([NI,NJ], dtype=float)    
-    self.DU=np.empty([NI,NJ], dtype=float)  
-    self.DV=np.empty([NI,NJ], dtype=float)    
-    self.EPSI=np.empty([NI,NJ], dtype=float)  
-    self.DELH=np.empty([NI,NJ], dtype=float)  
-    self.DELHO=np.empty([NI,NJ], dtype=float)    
-    self.TO=np.empty([NI,NJ], dtype=float)  
-    self.UO=np.empty([NI,NJ], dtype=float)  
-    self.VO=np.empty([NI,NJ], dtype=float)  
-    self.TOLD=np.empty([NI,NJ], dtype=float)  
-    self.UOLD=np.empty([NI,NJ], dtype=float)  
-    self.VOLD=np.empty([NI,NJ], dtype=float)  
-    self.UHAT=np.empty([NI,NJ], dtype=float)  
-    self.VHAT=np.empty([NI,NJ], dtype=float)  
+    self.U=nm.empty([NI,NJ], dtype=float)  
+    self.V=nm.empty([NI,NJ], dtype=float)  
+    self.PC=nm.empty([NI,NJ], dtype=float)  
+    self.T=nm.empty([NI,NJ], dtype=float)  
+    self.P=nm.empty([NI,NJ], dtype=float)  
+    self.RHO=nm.empty([NI,NJ], dtype=float)  
+    self.GAM=nm.empty([NI,NJ], dtype=float)  
+    self.CON=nm.empty([NI,NJ], dtype=float)  
+    self.Ur=nm.empty([NI,NJ], dtype=float)  
+    self.Vr=nm.empty([NI,NJ], dtype=float)    
+    self.AIP=nm.empty([NI,NJ], dtype=float)  
+    self.AIM=nm.empty([NI,NJ], dtype=float)  
+    self.AJP=nm.empty([NI,NJ], dtype=float)  
+    self.AJM=nm.empty([NI,NJ], dtype=float)  
+    self.AP=nm.empty([NI,NJ], dtype=float)  
+    self.AP0=nm.empty([NI,NJ], dtype=float)  
+    self.AP1=nm.empty([NI,NJ], dtype=float)    
+    self.DU=nm.empty([NI,NJ], dtype=float)  
+    self.DV=nm.empty([NI,NJ], dtype=float)    
+    self.EPSI=nm.empty([NI,NJ], dtype=float)  
+    self.DELH=nm.empty([NI,NJ], dtype=float)  
+    self.DELHO=nm.empty([NI,NJ], dtype=float)    
+    self.TO=nm.empty([NI,NJ], dtype=float)  
+    self.UO=nm.empty([NI,NJ], dtype=float)  
+    self.VO=nm.empty([NI,NJ], dtype=float)  
+    self.TOLD=nm.empty([NI,NJ], dtype=float)  
+    self.UOLD=nm.empty([NI,NJ], dtype=float)  
+    self.VOLD=nm.empty([NI,NJ], dtype=float)  
+    self.UHAT=nm.empty([NI,NJ], dtype=float)  
+    self.VHAT=nm.empty([NI,NJ], dtype=float)  
 
-    self.COFU=np.zeros([NI,NJ,6], dtype=float)  
-    self.COFV=np.zeros([NI,NJ,6], dtype=float)  
-    self.COFP=np.zeros([NI,NJ,6], dtype=float)  
-    self.COF=np.zeros([NI,NJ,6], dtype=float)  
+    self.COFU=nm.zeros([NI,NJ,6], dtype=float)  
+    self.COFV=nm.zeros([NI,NJ,6], dtype=float)  
+    self.COFP=nm.zeros([NI,NJ,6], dtype=float)  
+    self.COF=nm.zeros([NI,NJ,6], dtype=float)  
 
-    self.RELAX=np.empty(NFX3, dtype=float)  
-    self.NTIMES=np.empty(NFX3, dtype=int)  
+    self.RELAX=nm.empty(NFX3, dtype=float)  
+    self.NTIMES=nm.empty(NFX3, dtype=int)  
 
     self.RELAX[:] = 0.5 
     self.RELAX[0]=0.5
@@ -126,9 +151,9 @@ class PhaseChangeSolver:
     self.RELAX[3]=0.9
 
     #Logical
-    self.LSOLVE=np.empty(NFX3, dtype=bool)
-    self.LPRINT=np.empty(NFX3, dtype=bool)
-    self.LBLK=np.empty(NFX3, dtype=bool)  
+    self.LSOLVE=nm.empty(NFX3, dtype=bool)
+    self.LPRINT=nm.empty(NFX3, dtype=bool)
+    self.LBLK=nm.empty(NFX3, dtype=bool)  
 
     self.LSOLVE[:] = False
     self.LSOLVE[0]=True   
@@ -143,7 +168,6 @@ class PhaseChangeSolver:
       self.NTIMES[i]=1   
       self.LBLK[i]=True   
  
-    self.TITLE=['UVEL','VVEL','','TEMP']   
     self.ITER=0   
     self.R[0]=0.0   
 
@@ -173,6 +197,27 @@ class PhaseChangeSolver:
         self.DELH[I,J]=0.0
         self.DELHO[I,J]=0.0
 
+    self.var_dict= self.create_output_var_dicts(conf)
+
+  def create_output_var_dicts(self,conf):
+    """
+    """
+    var_dict={}
+    for i in conf.variables.keys():
+      order=1
+      setattr(self,conf.variables[i].name+"_dict",{"name":"output_data",
+                              "dofs":[conf.variables[i].name],
+                              "mode":"vertex",
+                              "var_name":conf.variables[i].name})
+      for j in conf.fields.keys():
+        if conf.fields[j].name == conf.variables[i].field:
+          getattr(self,conf.variables[i].name+"_dict")["dofs"]= [conf.variables[i].name+\
+                                                "."+str(conf.fields[j].approx_order-1)] 
+          order=conf.fields[j].approx_order
+      getattr(self,conf.variables[i].name+"_dict")["data"]= nm.empty((self.vertices,order), dtype=float)
+      var_dict[conf.variables[i].name]=Struct(**getattr(self,conf.variables[i].name+"_dict"))
+    return var_dict
+
   def grid_initialize(self):
     """
     THIS FUNCTION GENERATES UNIFORM GRID
@@ -185,8 +230,6 @@ class PhaseChangeSolver:
     DY=self.YL/float(self.M1-2)   
     for J in range(2,self.M1):   
       self.YV[J]=self.YV[J-1]+DY 
-    #print self.XU
-    #print self.YV
 
   def geometry_initialize(self):
     """
@@ -232,17 +275,9 @@ class PhaseChangeSolver:
     self.YCVS[2]=self.YCVS[2]+self.YDIF[2]   
     self.YCVS[M2-1]=self.YCVS[M2-1]+self.YDIF[M1-1]   
 
-    if self.MODE <> 1: 
-      for J in range(1,M1):   
-        self.R[J]=self.R[J-1]+self.YDIF[J]   
-      self.RMN[1]=self.R[0]   
-      for J in range(2,M2):   
-        self.RMN[J]=self.RMN[J-1]+self.YCV[J-1]   
-      self.RMN[M1-1]=self.R[M1-1]   
-    else:
-      for J in range(0,M1):   
-        self.RMN[J]=1.0   
-        self.R[J]=1.0   
+    for J in range(0,M1):   
+      self.RMN[J]=1.0   
+      self.R[J]=1.0   
 
     for J in range(0,M1):    
       self.SX[J]=1.   
@@ -264,16 +299,10 @@ class PhaseChangeSolver:
       self.YCVRS[J]=0.5*(self.R[J]+self.R[J-1])*self.YDIF[J]   
     self.YCVRS[2]=0.5*(self.R[2]+self.R[0])*self.YCVS[2]   
     self.YCVRS[M2-1]=0.5*(self.R[M1-1]+self.R[M3-1])*self.YCVS[M2-1]   
-    
-    if self.MODE == 2:   
-      for J in range(2,M3):   
-        self.ARXJ[J]=0.25*(1.0+self.RMN[J]/self.R[J])*self.ARX[J]   
-        self.ARXJP[J]=self.ARX[J]-self.ARXJ[J]   
-
-    else:  
-      for J in range(2,M3):   
-        self.ARXJ[J]=0.5*self.ARX[J]   
-        self.ARXJP[J]=self.ARXJ[J]
+ 
+    for J in range(2,M3):   
+      self.ARXJ[J]=0.5*self.ARX[J]   
+      self.ARXJP[J]=self.ARXJ[J]
 
     self.ARXJP[1]=self.ARX[1]   
     self.ARXJ[M2-1]=self.ARX[M2-1]   
@@ -296,16 +325,7 @@ class PhaseChangeSolver:
     self.FYM[M1-1]=0.   
                                                                 
     self.IM4=self.M1-3   
-    self.IM5=self.M1-4   
-
-    if self.MODE == 1: 
-      print('COMPUTATION  IN  CARTESIAN  COORDINATES')   
-    if self.MODE == 2: 
-      print('COMPUTATION FOR AXISYMMETRIC SITUATION')   
-    if self.MODE == 3: 
-      print('COMPUTATION   IN   POLAR   COORDINATES')      
-    #print self.X
-    #print self.Y    
+    self.IM5=self.M1-4     
 
   def start(self):  
     """
@@ -385,7 +405,7 @@ class PhaseChangeSolver:
     """
     THIS FUNCTION SOLVES DISCRETISATION EQUATIONS BY 'LINE BY LINE TDMA'.
     """   
-    self.F=np.empty([self.NI,self.NJ], dtype=float)    
+    self.F=nm.empty([self.NI,self.NJ], dtype=float)    
     if self.NF == 0:
       self.F[:,:] = self.U[:,:]  
     if self.NF == 1:
@@ -421,7 +441,9 @@ class PhaseChangeSolver:
               BL=BL-self.AJM[I,J]   
             BLP=BLP+self.AIP[I,J]   
             BLM=BLM+self.AIM[I,J]   
-            BLC=BLC+self.CON[I,J]+self.AIP[I,J]*self.F[I+1,J]+self.AIM[I,J]*self.F[I-1,J]+self.AJP[I,J]*self.F[I,J+1]+self.AJM[I,J]*self.F[I,J-1]-self.AP[I,J]*self.F[I,J]        
+            BLC=BLC+self.CON[I,J]+self.AIP[I,J]*self.F[I+1,J]+\
+                  self.AIM[I,J]*self.F[I-1,J]+self.AJP[I,J]*self.F[I,J+1]+\
+                      self.AJM[I,J]*self.F[I,J-1]-self.AP[I,J]*self.F[I,J]        
           DENOM=BL-self.PT[I-1]*BLM   
           if abs(DENOM/BL)< 10.0**(-10):
             DENOM=10.0**30   
@@ -449,7 +471,9 @@ class PhaseChangeSolver:
               BL=BL-self.AIM[I,J]   
             BLP=BLP+self.AJP[I,J]   
             BLM=BLM+self.AJM[I,J]   
-            BLC=BLC+self.CON[I,J]+self.AIP[I,J]*self.F[I+1,J]+self.AIM[I,J]*self.F[I-1,J]+self.AJP[I,J]*self.F[I,J+1]+self.AJM[I,J]*self.F[I,J-1]-self.AP[I,J]*self.F[I,J]        
+            BLC=BLC+self.CON[I,J]+self.AIP[I,J]*self.F[I+1,J]+\
+                  self.AIM[I,J]*self.F[I-1,J]+self.AJP[I,J]*self.F[I,J+1]+\
+                    self.AJM[I,J]*self.F[I,J-1]-self.AP[I,J]*self.F[I,J]        
           DENOM=BL-self.PT[J-1]*BLM   
           if abs(DENOM/BL) < 10.0**(-10): 
             DENOM = 10.0**30   
@@ -625,14 +649,20 @@ class PhaseChangeSolver:
           for I in range(1,self.L2):   
             if I <> self.L2-1:   
               FL=self.ARXJ[J]*self.U[I+1,J]*(self.FX[I+1]*self.RHO[I+1,J]+self.FXM[I+1]*self.RHO[I,J])   
-              FLM=self.ARXJP[J-1]*self.U[I+1,J-1]*(self.FX[I+1]*self.RHO[I+1,J-1]+self.FXM[I+1]*self.RHO[I,J-1])                                                       
-              GM=self.GAM[I,J]*self.GAM[I+1,J]/(self.XCV[I]*self.GAM[I+1,J]+self.XCV[I+1]*self.GAM[I,J]+ 10.0**(-30))*self.ARXJ[J]                                                    
-              GMM=self.GAM[I,J-1]*self.GAM[I+1,J-1]/(self.XCV[I]*self.GAM[I+1,J-1]+self.XCV[I+1]*self.GAM[I,J-1]+ 10.0**(-30))*self.ARXJP[J-1]                                    
+              FLM=self.ARXJP[J-1]*self.U[I+1,J-1]*\
+                  (self.FX[I+1]*self.RHO[I+1,J-1]+self.FXM[I+1]*self.RHO[I,J-1])                                                       
+              GM=self.GAM[I,J]*self.GAM[I+1,J]\
+                  /(self.XCV[I]*self.GAM[I+1,J]+\
+                      self.XCV[I+1]*self.GAM[I,J]+\
+                       10.0**(-30))*self.ARXJ[J]                                                    
+              GMM=self.GAM[I,J-1]*self.GAM[I+1,J-1]/(self.XCV[I]*self.GAM[I+1,J-1]+\
+                                                    self.XCV[I+1]*self.GAM[I,J-1]+ 10.0**(-30))*self.ARXJP[J-1]                                    
               self.DIFF=2.0*(GM+GMM)/self.SXMN[J]   
             else:   
               FL=self.ARXJ[J]*self.U[self.L1-1,J]*self.RHO[self.L1-1,J]   
               FLM=self.ARXJP[J-1]*self.U[self.L1-1,J-1]*self.RHO[self.L1-1,J-1]   
-              self.DIFF=(self.ARXJ[J]*self.GAM[self.L1-1,J]+self.ARXJP[J-1]*self.GAM[self.L1-1,J-1])/(self.XDIF[self.L1-1]*self.SXMN[J])   
+              self.DIFF=(self.ARXJ[J]*self.GAM[self.L1-1,J]+\
+                        self.ARXJP[J-1]*self.GAM[self.L1-1,J-1])/(self.XDIF[self.L1-1]*self.SXMN[J])   
             self.FLOW=FL+FLM   
             self.diflow()   
             self.AIM[I+1,J]=self.ACOF+ max(self.ZERO,self.FLOW)   
@@ -657,10 +687,13 @@ class PhaseChangeSolver:
             SXB=self.SX[J-1]   
             if J == 2:
               SXB=self.SX[0]   
-            self.APT=(self.ARXJ[J]*self.RHO[I,J]*0.5*(SXT+self.SXMN[J])+self.ARXJP[J-1]*self.RHO[I,J-1]*0.5*(SXB+self.SXMN[J]))/(self.YCVRS[J]*self.DT)                                    
+            self.APT=(self.ARXJ[J]*self.RHO[I,J]*0.5*(SXT+self.SXMN[J])+\
+                      self.ARXJP[J-1]*self.RHO[I,J-1]*0.5*(SXB+self.SXMN[J]))/(self.YCVRS[J]*self.DT)                                    
             self.AP[I,J]=self.AP[I,J]-self.APT   
             self.CON[I,J]=self.CON[I,J]+self.APT*self.VO[I,J]   
-            self.AP[I,J]=(-self.AP[I,J]*self.VOL+self.AIP[I,J]+self.AIM[I,J]+self.AJP[I,J]+self.AJM[I,J])/self.RELAX[self.NF]                                                          
+            self.AP[I,J]=(-self.AP[I,J]*self.VOL+\
+                          self.AIP[I,J]+self.AIM[I,J]+\
+                          self.AJP[I,J]+self.AJM[I,J])/self.RELAX[self.NF]                                                          
             
             #THIS IS CORMAN RELATION FOR POROUS MEDIA EFFECTS
             self.AP0[I,J]=self.RHO[I,J]*self.VOL/self.DT 
@@ -681,10 +714,18 @@ class PhaseChangeSolver:
         #CALCULATE UHAT AND VHAT. 
         for J in range(1,self.M2):  
           for I in range(2,self.L2):  
-            self.UHAT[I,J]=(self.COFU[I,J,1]*self.U[I+1,J]+self.COFU[I,J,2]*self.U[I-1,J]+self.COFU[I,J,3]*self.U[I,J+1]+self.COFU[I,J,4]*self.U[I,J-1]+self.COFU[I,J,0])/self.COFU[I,J,5]  
+            self.UHAT[I,J]=(self.COFU[I,J,1]*self.U[I+1,J]+\
+                            self.COFU[I,J,2]*self.U[I-1,J]+\
+                            self.COFU[I,J,3]*self.U[I,J+1]+\
+                            self.COFU[I,J,4]*self.U[I,J-1]+\
+                            self.COFU[I,J,0])/self.COFU[I,J,5]  
         for J in range(2,self.M2):  
           for I in range(1,self.L2):  
-            self.VHAT[I,J]=(self.COFV[I,J,1]*self.V[I+1,J]+self.COFV[I,J,2]*self.V[I-1,J]+self.COFV[I,J,3]*self.V[I,J+1]+self.COFV[I,J,4]*self.V[I,J-1]+self.COFV[I,J,0])/self.COFV[I,J,5]  
+            self.VHAT[I,J]=(self.COFV[I,J,1]*self.V[I+1,J]+\
+                              self.COFV[I,J,2]*self.V[I-1,J]+\
+                              self.COFV[I,J,3]*self.V[I,J+1]+\
+                              self.COFV[I,J,4]*self.V[I,J-1]+\
+                              self.COFV[I,J,0])/self.COFV[I,J,5]  
    
         #COEFFICIENTS FOR THE PRESSURE EQUATION. 
         self.NF=2   
@@ -871,8 +912,10 @@ class PhaseChangeSolver:
             self.AIM[1,J]=self.ACOF+ max(self.ZERO,self.FLOW)   
             for I in range(1,self.L2):   
               if I <> self.L2-1:   
-                self.FLOW=self.ARX[J]*self.U[I+1,J]*(self.FX[I+1]*self.RHO[I+1,J]+self.FXM[I+1]*self.RHO[I,J])   
-                self.DIFF=self.ARX[J]*2.0*self.GAM[I,J]*self.GAM[I+1,J]/((self.XCV[I]*self.GAM[I+1,J]+self.XCV[I+1]*self.GAM[I,J]+10.0**(-30))*self.SX[J])                                  
+                self.FLOW=self.ARX[J]*self.U[I+1,J]\
+                                *(self.FX[I+1]*self.RHO[I+1,J]+self.FXM[I+1]*self.RHO[I,J])   
+                self.DIFF=self.ARX[J]*2.0*self.GAM[I,J]*self.GAM[I+1,J]\
+                          /((self.XCV[I]*self.GAM[I+1,J]+self.XCV[I+1]*self.GAM[I,J]+10.0**(-30))*self.SX[J])                                  
               else:  
                 self.FLOW=self.ARX[J]*self.U[self.L1-1,J]*self.RHO[self.L1-1,J]   
                 self.DIFF=self.ARX[J]*self.GAM[self.L1-1,J]/(self.XDIF[self.L1-1]*self.SX[J])   
@@ -881,8 +924,10 @@ class PhaseChangeSolver:
               self.AIP[I,J]=self.AIM[I+1,J]-self.FLOW   
               self.AREA=self.RMN[J+1]*self.XCV[I]   
               if J <> self.M2-1:   
-                self.FLOW=self.AREA*self.V[I,J+1]*(self.FY[J+1]*self.RHO[I,J+1]+self.FYM[J+1]*self.RHO[I,J])   
-                self.DIFF=self.AREA*2.0*self.GAM[I,J]*self.GAM[I,J+1]/(self.YCV[J]*self.GAM[I,J+1]+self.YCV[J+1]*self.GAM[I,J]+10.0**(-30))               
+                self.FLOW=self.AREA*self.V[I,J+1]*(self.FY[J+1]\
+                                      *self.RHO[I,J+1]+self.FYM[J+1]*self.RHO[I,J])   
+                self.DIFF=self.AREA*2.0*self.GAM[I,J]*self.GAM[I,J+1]\
+                      /(self.YCV[J]*self.GAM[I,J+1]+self.YCV[J+1]*self.GAM[I,J]+10.0**(-30))               
               else:
                 self.FLOW=self.AREA*self.V[I,self.M1-1]*self.RHO[I,self.M1-1]   
                 self.DIFF=self.AREA*self.GAM[I,self.M1-1]/self.YDIF[self.M1-1]   
@@ -897,7 +942,8 @@ class PhaseChangeSolver:
               self.AP[I,J]=self.AP[I,J]-self.APT   
               if self.NF == 3: 
                 self.CON[I,J]=self.CON[I,J]+self.APT*self.TO[I,J]   
-              self.AP[I,J]=(-self.AP[I,J]*self.VOL+self.AIP[I,J]+self.AIM[I,J]+self.AJP[I,J]+self.AJM[I,J])/self.RELAX[self.NF] 
+              self.AP[I,J]=(-self.AP[I,J]*self.VOL+self.AIP[I,J]+self.AIM[I,J]\
+                              +self.AJP[I,J]+self.AJM[I,J])/self.RELAX[self.NF] 
              
               self.AP1[I,J]=self.AP[I,J]
 
@@ -914,7 +960,8 @@ class PhaseChangeSolver:
             for I in range(1,self.L2):
               self.VOL=self.YCVR[J]*self.XCV[I]      
               self.AP0[I,J]=self.RHO[I,J]*self.VOL/self.DT
-              self.DELH[I,J]=self.DELH[I,J]+self.AP1[I,J]*self.CP*self.ARELAX*(self.T[I,J]-self.TMELT)/self.AP0[I,J]
+              self.DELH[I,J]=self.DELH[I,J]+self.AP1[I,J]*self.CP*\
+                              self.ARELAX*(self.T[I,J]-self.TMELT)/self.AP0[I,J]
               #PREVENT OVER OR UNDER SHOOTING
               if self.DELH[I,J] > self.ALATENT: 
                 self.DELH[I,J]=self.ALATENT
@@ -923,13 +970,13 @@ class PhaseChangeSolver:
               self.EPSI[I,J]=self.DELH[I,J]/self.ALATENT
       
       #CONVERGENCE CRITERIA.          
-      TMX = np.amax(abs(self.T[:,:]))  
-      UMX = np.amax(abs(self.U[:,:]))  
-      VMX = np.amax(abs(self.V[:,:]))
+      TMX = nm.amax(abs(self.T[:,:]))  
+      UMX = nm.amax(abs(self.U[:,:]))  
+      VMX = nm.amax(abs(self.V[:,:]))
         
-      DELT = np.amax(abs(self.T[:,:]-self.TOLD[:,:]))  
-      DELU = np.amax(abs(self.U[:,:]-self.UOLD[:,:]))  
-      DELV = np.amax(abs(self.V[:,:]-self.VOLD[:,:]))  
+      DELT = nm.amax(abs(self.T[:,:]-self.TOLD[:,:]))  
+      DELU = nm.amax(abs(self.U[:,:]-self.UOLD[:,:]))  
+      DELV = nm.amax(abs(self.V[:,:]-self.VOLD[:,:]))  
       
       if TMX > 0:  
         DELTMX=DELT/TMX  
@@ -946,17 +993,12 @@ class PhaseChangeSolver:
       else:   
         DELVMX=0.0  
       
-      if self.TIME < self.TLAST:  
-        print('TIME=%f ITERL=%d TMX=%f UMX=%f VMX=%f '%(self.TIME,self.ITERL,TMX,UMX,VMX))
-        print('DELTMX=%f DELUMX=%f DELVMX=%f'%(DELTMX,DELUMX,DELVMX))   
-      #print DELT,DELU,DELV,self.ITERL
       if DELT < self.ERT and DELU < self.ERU and DELV < self.ERV:  
         self.LCONV=1  
           
       if not(self.LCONV):  
         if DELTMX> self.ERT or DELUMX>self.ERU or DELVMX>self.ERV:
           if self.ITERL==self.ISTP:
-            print('EXCEEDED MAX. NO. OF ITERATIONS')
             self.LCONV=1
           else:
             self.ITERL=self.ITERL+1   
@@ -966,30 +1008,16 @@ class PhaseChangeSolver:
                 self.VOLD[I,J]=self.V[I,J]
             self.bound()   
 
-    #if self.TIME%self.TPRINT == 0:
-    #self.vect_plot() 
-    #self.printout()
+    self.vect_plot() 
 
-    self.ITLL=self.ITLL+1   
-    self.TIME=self.TIME+self.DT  
-
-    for STEPINDEX in range(self.LENSTEPS):
-      if self.TIME > self.STEPS[STEPINDEX]['starttime']: 
-        self.ISTP= self.STEPS[STEPINDEX]['maxIter'] 
-        self.DT=self.STEPS[STEPINDEX]['timeStep']
-
-    BBK=self.TIME % float(self.NTIME)   
-    if BBK<0.00001:   
-      self.ITER=self.ITER+1   
-      self.bound()   
-
-    if self.TIME >= self.TLAST:
-      self.LSTOP=1   
     for I in range(1,self.L1):   
       for J in range(1,self.M1):  
         self.UOLD[I,J]=self.U[I,J]   
         self.VOLD[I,J]=self.V[I,J]
-  
+
+    return 'Time=%f Max Iterations=%d Tmax=%f Umax=%f Vmax=%f '\
+            %(self.TIME,self.ITERL,TMX,UMX,VMX)
+
   def vect_plot(self):  
     """
     THIS FUNCTION FOR VECTOR PLOT
@@ -1037,77 +1065,6 @@ class PhaseChangeSolver:
     self.Ur[self.L1-1,self.M1-1]=self.U[self.L1-1,self.M1-1] 
     self.Vr[self.L1-1,self.M1-1]=self.V[self.L1-1,self.M1-1] 
 
- 
-  def printout(self,output_dir): 
-    """
-    THIS FUNCTION DIRECTLY GIVES vtk FILE
-    """ 
-
-    t = int(self.TIME)
-    vertices= self.NI*self.NJ
-    cells= (self.NI-1)*(self.NJ-1)
-    FILENAME = output_dir+"/phasechange_"+"0"*(7-len(str(t)))+str(t)+".vtk"
-    f = open(FILENAME,'w')  
-    f.write("# vtk DataFile Version 2.0\n")
-    f.write("step 0 time "+str(t)+", generated by pcsolver.py\n")
-    f.write("ASCII\n")
-    f.write("DATASET UNSTRUCTURED_GRID\n")
-    f.write("\n")
-    f.write("POINTS "+str(vertices)+" float\n")
-    for I in range(0,self.L1):
-      for J in range(0,self.M1):
-        f.write("%.3e %.3e 0.0\n"%(self.X[I],self.Y[J]))        
-    
-    f.write("\n")
-    f.write("CELLS "+str(cells)+" "+str(cells*5)+"\n")
-    for I in range(0,self.L1-1):
-      for J in range(0,self.M1-1):
-        f.write("4 %d %d %d %d\n"%((I+1)*self.NJ+J+1,I*self.NJ+(J+1),I*self.NJ+J,(I+1)*self.NJ+J)) 
-
-    f.write("\n")
-    f.write("CELL_TYPES "+str(cells)+"\n")
-    for I in range(0,self.L1-1):
-      for J in range(0,self.M1-1):
-        f.write("9\n")
-
-    f.write("\n")
-    f.write("POINT_DATA "+str(vertices)+"\n")    
-    f.write("\n")
-    f.write("SCALARS node_groups int 1\n")
-    f.write("LOOKUP_TABLE default\n")
-    for I in range(0,self.L1):
-      for J in range(0,self.M1):
-        f.write("0\n")   
-
-    f.write("\n")
-    f.write("SCALARS T float 1\n")
-    f.write("LOOKUP_TABLE default\n") 
-    for I in range(0,self.L1):
-      for J in range(0,self.M1):
-        f.write("%.3e\n"%(self.T[I,J]))   
-
-    f.write("\n")
-    f.write("SCALARS EPSI float 1\n")
-    f.write("LOOKUP_TABLE default\n") 
-    for I in range(0,self.L1):
-      for J in range(0,self.M1):
-        f.write("%.2e\n"%(self.EPSI[I,J]))   
-
-    f.write("\n")
-    f.write("VECTORS u float\n")
-    for I in range(0,self.L1):
-      for J in range(0,self.M1):
-        f.write("%.2e %.2e 0.0\n"%(self.Ur[I,J],self.Vr[I,J]))   
-
-    f.write("\n")
-    f.write("CELL_DATA "+str(cells)+"\n")
-    f.write("SCALARS mat_id int 1\n")
-    f.write("LOOKUP_TABLE default\n")
-    for I in range(0,self.L1-1):
-      for J in range(0,self.M1-1):
-        f.write("2\n")
-    f.close()  
-
   def bound(self):
     """
     THIS FUNCTION GIVES BOUNDARY CONDITIONS FOR THE PROBLEM
@@ -1142,4 +1099,102 @@ class PhaseChangeSolver:
        self.EPSI[I,0]=self.EPSI[I,1]   #BOTTOM FACE
        self.EPSI[I,self.M1-1]=self.EPSI[I,self.M2-1] #TOP FACE
 
+  def time_update(self):
+    """
+    """
+    self.ITLL=self.ITLL+1   
+    self.TIME=self.TIME+self.DT  
 
+    for STEPINDEX in range(self.LENSTEPS):
+      if self.TIME > self.STEPS[STEPINDEX]['starttime']: 
+        self.ISTP= self.STEPS[STEPINDEX]['maxIter'] 
+        self.DT=self.STEPS[STEPINDEX]['timeStep']
+
+    BBK=self.TIME % float(self.NTIME)   
+    if BBK<0.00001:   
+      self.ITER=self.ITER+1   
+      self.bound()   
+  
+  def time_over(self):
+    """
+
+    """
+    if self.TIME > self.TLAST:
+      self.LSTOP=1 
+      return True
+    else:
+      return False
+
+  def get_field(self,field):
+    """
+    Create a MeshIO instance for file `filename` with forced `format`.
+
+    Parameters
+    ----------
+    filename : str
+        The name of the mesh file.
+    format : str
+        One of supported formats. If None,
+        :func:`MeshIO.any_from_filename()` is called instead.
+    writable : bool
+        If True, verify that the mesh format is writable.
+    prefix_dir : str
+        The directory name to prepend to `filename`.
+
+    Returns
+    -------
+    io : MeshIO subclass instance
+        The MeshIO subclass instance corresponding to the `format`.
+    """
+    if field=='u':
+      for I in range(0,self.L1):
+        for J in range(0,self.M1):
+          self.var_dict[field].data[I*self.NJ+J]=[self.Ur[I,J],self.Vr[I,J]]
+      return self.var_dict[field]
+    if field=='p':  
+      for I in range(0,self.L1):
+        for J in range(0,self.M1):
+          self.var_dict[field].data[I*self.NJ+J]=self.P[I,J]
+      return self.var_dict[field] 
+    if field=='T':
+      for I in range(0,self.L1):
+        for J in range(0,self.M1):
+          self.var_dict[field].data[I*self.NJ+J]=self.T[I,J]
+      return self.var_dict[field] 
+    if field=='epsi':   
+      for I in range(0,self.L1):
+        for J in range(0,self.M1):
+          self.var_dict[field].data[I*self.NJ+J]=self.EPSI[I,J]
+      return self.var_dict[field] 
+  
+  def get_mesh_vars(self):
+    """
+
+    """
+    vertices= self.NI*self.NJ
+    coors=nm.empty([vertices,2], dtype=float)  
+    ngroups=nm.zeros(vertices, dtype=float) 
+    
+    for I in range(0,self.L1):
+      for J in range(0,self.M1):
+        coors[I*self.NJ+J]=[self.X[I],self.Y[J]]    
+
+    cells= (self.NI-1)*(self.NJ-1)
+    conns=nm.empty([cells,4], dtype=int)  
+    for I in range(0,self.L1-1):
+      for J in range(0,self.M1-1):
+          conns[I*(self.NJ-1)+J]=[(I+1)*self.NJ+J+1,
+                                  I*self.NJ+(J+1),
+                                  I*self.NJ+J,
+                                  (I+1)*self.NJ+J]    
+
+    mat_ids = nm.empty(cells, dtype=int)
+    mat_ids.fill(2) 
+    descs = '2_4'
+    return coors,ngroups,[conns],[mat_ids],[descs]  
+
+  def get_current_time(self):
+    """
+
+    """
+    return self.TIME  
