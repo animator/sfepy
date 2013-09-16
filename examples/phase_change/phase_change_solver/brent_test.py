@@ -38,17 +38,17 @@ def define():
 
 	grid={'xLength':9.00E-2, 
       'yLength':6.35E-2, 
-      'xGrids':42, 
-      'yGrids':32} 
+      'xGrids':22, 
+      'yGrids':16} 
 
 	tinit = {'T_INITIAL':28.3} 
 
 	tbcs = {'T_HOT':38}
 
 	times={'steps':({'starttime':0,'timeStep':5,'maxIter':20},
-	            {'starttime':40,'timeStep':10,'maxIter':100},
-	            {'starttime':150,'timeStep':10,'maxIter':1000}),               
-	  		'timeLast':600.0}
+	            {'starttime':40,'timeStep':10,'maxIter':80},
+	            {'starttime':150,'timeStep':10,'maxIter':150}),               
+	  		'timeLast':200.0}
 	return locals()
 
 def main():
