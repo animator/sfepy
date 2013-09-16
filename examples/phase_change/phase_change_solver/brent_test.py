@@ -82,9 +82,7 @@ def main():
 		u=a.get_field('u')
 		T=a.get_field('T')
 		vtkmesh = VTKMeshIO(mesh.name)
-		vtkmesh.write(mesh.name+"_"+time+".vtk",mesh,out={"epsi":epsi,
-															"u":u,
-															"T":T})
+		vtkmesh.write(mesh.name+"_"+time+".vtk",mesh,out={"epsi":epsi,"u":u,"T":T})
 		a.time_update()
 	output('results saved in %s' %(output_dir))
 

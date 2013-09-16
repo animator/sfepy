@@ -1197,4 +1197,5 @@ class PhaseChangeSolver:
     """
 
     """
-    return self.TIME  
+    return self.TIME
+  
