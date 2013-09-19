@@ -1,5 +1,6 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
+
 import sys
 sys.path.append('.')
 
@@ -48,53 +49,53 @@ def define():
 
     tbcs = {'T_HOT':38}
 
-    times = {'steps':({'starttime':0, 'timeStep':5, 'maxIter':20},
-             {'starttime':40, 'timeStep':10, 'maxIter':80}, {'starttime':150,
-             'timeStep':10, 'maxIter':150}), 'timeLast':200.0}
+    itertimes = {'maxiterlimit':[{'starttime':0, 'deltatime':5, 'maxIter':20},
+                 {'starttime':40, 'deltatime':10, 'maxIter':80},
+                 {'starttime':150, 'deltatime':10, 'maxIter':150}],
+                 'timeLast':200.0}
     return locals()
+
+
+required = [
+    'field_[0-9]+|fields',
+    'tinit',
+    'tbcs',
+    'variable_[0-9]+|variables',
+    'itertimes',
+    'material_[0-9]+|materials',
+    ]
 
 
 def main():
     from sfepy.base.base import output, Struct
     from sfepy.base.conf import ProblemConf, get_standard_keywords
-    from sfepy.fem import ProblemDefinition
-    from sfepy.fem.mesh import Mesh
     from sfepy.fem.meshio import MeshIO, VTKMeshIO
-    from pcsolver import PhaseChangeSolver
+    from sfepy.solvers.pcsolver import PhaseChangeSolver
+    from sfepy.solvers.solvers import Solver
     from sfepy.fem.variables import Variable
 
     output.prefix = 'phasechange:'
-    conf = ProblemConf.from_file(__file__)
-    a = PhaseChangeSolver(conf)
-    a.grid_initialize()
-    a.geometry_initialize()
-    name = os.path.join(output_dir, 'pcsolver')
-    coors, ngroups, conns, mat_ids, descs = a.get_mesh_vars()
-    mesh = Mesh.from_data(
-        name,
-        coors,
-        ngroups,
-        conns,
-        mat_ids,
-        descs,
-        )
-    mesh.write()
-    a.start()
-    while not a.time_over():
-        a.dense()
-        a.bound()
-        a.oldval()
-        prntout = a.coeff()
+    conf = ProblemConf.from_file(__file__, required=required)
+    # a=conf.to_dict()
+    # output(conf)
+    conf = PhaseChangeSolver.process_conf(conf)
+    pcs = PhaseChangeSolver(conf)
+    pcs, mesh = pcs(output_dir)
+    while not pcs.time_over():
+        pcs.dense()
+        pcs.bound()
+        pcs.oldval()
+        prntout = pcs.coeff()
         output(prntout)
-        time = str(int(a.get_current_time() * 100))
+        time = str(int(pcs.get_current_time() * 100))
         time = '0' * (7 - len(time)) + time
-        epsi = a.get_field('epsi')
-        u = a.get_field('u')
-        T = a.get_field('T')
+        epsi = pcs.get_field('epsi')
+        u = pcs.get_field('u')
+        T = pcs.get_field('T')
         vtkmesh = VTKMeshIO(mesh.name)
         vtkmesh.write(mesh.name + '_' + time + '.vtk', mesh, out={'epsi':epsi,
                       'u':u, 'T':T})
-        a.time_update()
+        pcs.time_update()
     output('results saved in %s' % output_dir)
 
 
