@@ -1,39 +1,161 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
+
 import numpy as nm
 import math
+import os
 from sfepy.base.base import Struct
+from sfepy.fem.mesh import Mesh
+from sfepy.solvers.solvers import make_get_conf, Solver
 
 
-class PhaseChangeSolver:
+class PhaseChangeSolver(Solver):
 
     """
-  The solver class for performing calculation for phase change simulations.
+    The solver class for performing calculation for phase change simulations.
 
-  """
+    """
 
-    def __init__(self, conf):
+    name = 'pcs'
+
+    @staticmethod
+    def process_conf(conf, kwargs=None):
         """
-    Create a MeshIO instance according to the kind of `filename`.
+        Missing items are set to default values.
+        
+        Parameters
+        ----------
+        conf : Struct
+            See the default configuration below, which contains the 
+            configuration for the solver.
 
-    Parameters
-    ----------
-    filename : str, function or MeshIO subclass instance
-        The name of the mesh file. It can be also a user-supplied function
-        accepting two arguments: `mesh`, `mode`, where `mesh` is a Mesh
-        instance and `mode` is one of 'read','write', or a MeshIO subclass
-        instance.
-    prefix_dir : str
-        The directory name to prepend to `filename`.
+        Returns
+        -------
+        conf : Struct
+            It contains the processed configuration. If any item is 
+            missing it is returned from the default configuration below.
 
-    Returns
-    -------
-    io : MeshIO subclass instance
-        The MeshIO subclass instance corresponding to the kind of `filename`.
-    """
+        Example configuration, all items::
 
-        NI = self.NI = conf.grid['xGrids']
-        NJ = self.NJ = conf.grid['yGrids']
+            materials = {'gallium':({
+                'darcyConstant':1.6E6,
+                'density':6093.0,
+                'conductivity':32.0,
+                'meltingTemp':29.78,
+                'specificHeatCapacity':381.5,
+                'latentHeat':80160.0,
+                'thermalExpansionCoeff':1.2E-4,
+                'viscosity':1.81E-3,
+                'referenceDensity':6095.0,
+                }, )}
+
+            fields = {
+                'velocity':('real', 'vector', 'Omega', 2),
+                'pressure':('real', 'scalar', 'Omega', 1),
+                'temperature':('real', 'scalar', 'Omega', 1),
+                'liquidfraction':('real', 'scalar', 'Omega', 1),
+                }
+
+            variables = {
+                'u':('unknown field', 'velocity', 0),
+                'p':('unknown field', 'pressure', 1),
+                'T':('unknown field', 'temperature', 2),
+                'epsi':('unknown field', 'liquidfraction', 3),
+                }
+
+            grid = {
+                'xLength':9.00E-2,
+                'yLength':6.35E-2,
+                'xGrids':22,
+                'yGrids':16,
+                }
+
+            tinit = {'T_INITIAL':28.3}
+
+            tbcs = {'T_HOT':38}
+
+            itertimes = {'maxiterlimit':({'starttime':0, 'deltatime':5, 'maxIter':100},), 
+                'timeLast':200.0}
+        """
+
+        conf = Struct(**conf.get_raw())
+        getgrid = conf.grid.get
+        grid = {
+            'xGrids':getgrid('xGrids', 22),
+            'yGrids':getgrid('yGrids', 16),
+            'xLength':getgrid('xLength', 9.00E-2),
+            'yLength':getgrid('yLength', 6.35E-2),
+            }
+        conf.grid = Struct(**grid)
+        # print conf.grid
+        gettinit = conf.tinit.get
+        tinit = {'T_Initial':gettinit('T_INITIAL', 28.3)}
+        conf.tinit = Struct(**tinit)
+        # print conf.tinit
+        gettbcs = conf.tbcs.get
+        tbcs = {'T_Hot':gettbcs('T_HOT', 38)}
+        conf.tbcs = Struct(**tbcs)
+        # print conf.tbcs
+        getvariables = conf.variables.get
+        variables = {
+            'u':getvariables('u', ('unknown field', 'velocity', 0)),
+            'p':getvariables('p', ('unknown field', 'pressure', 1)),
+            'T':getvariables('T', ('unknown field', 'temperature', 2)),
+            'epsi':getvariables('epsi', ('unknown field', 'liquidfraction',
+                                3)),
+            }
+        # conf.variables = Struct(**variables)
+        # print conf.variables
+        getfields = conf.fields.get
+        fields = {
+            'velocity':getfields('velocity', ('real', 'vector', 'Omega', 2)),
+            'pressure':getfields('pressure', ('real', 'scalar', 'Omega', 1)),
+            'temperature':getfields('temperature', ('real', 'scalar', 'Omega',
+                                    1)),
+            'liquidfraction':getfields('liquidfraction', ('real', 'scalar',
+                                       'Omega', 1)),
+            }
+        conf.fields = Struct(**fields)
+        # print conf.fields
+        matprops = conf.materials.itervalues().next()
+        getmatprops = matprops[0].get
+        matprops = {
+            'darcyConstant':getmatprops('darcyConstant', 1.6E6),
+            'density':getmatprops('density', 6093.0),
+            'conductivity':getmatprops('conductivity', 32.0),
+            'meltingTemp':getmatprops('meltingTemp', 29.78),
+            'specificHeatCapacity':getmatprops('specificHeatCapacity', 381.5),
+            'latentHeat':getmatprops('latentHeat', 80160.0),
+            'thermalExpansionCoeff':getmatprops('thermalExpansionCoeff',
+                    1.2E-4),
+            'viscosity':getmatprops('viscosity', 1.81E-3),
+            'referenceDensity':getmatprops('referenceDensity', 6095.0),
+            }
+        conf.materials = Struct(**matprops)
+        # print conf.materials
+        conf.itertimes = Struct(**conf.itertimes)
+        conf.itertimes.maxiterlimit = conf.itertimes.get('maxiterlimit',
+                [{'starttime':0, 'deltatime':5, 'maxIter':100}])
+        conf.itertimes.timeLast = conf.itertimes.get('timeLast', 200)
+        for i in range(len(conf.itertimes.maxiterlimit)):
+            conf.itertimes.maxiterlimit[i] = \
+                Struct(**conf.itertimes.maxiterlimit[i])
+        # print conf.itertimes
+        return conf
+
+    def __init__(self, conf, **kwargs):
+        """
+        Initializes the solver variables according to the configuration Struct.
+
+        Parameters
+        ----------
+        conf : Struct
+            It contains the processed configuration required to setup the solver.
+
+        """
+
+        NI = self.NI = conf.grid.xGrids
+        NJ = self.NJ = conf.grid.yGrids
         self.vertices = NI * NJ
         NIJ = self.NIJ = max(self.NI, self.NJ)
         NFMAX = self.NFMAX = 10
@@ -46,33 +168,32 @@ class PhaseChangeSolver:
         self.MODE = 1
         self.TIME = 0
 
-        self.XL = conf.grid['xLength']
-        self.YL = conf.grid['yLength']
-        L1 = self.L1 = conf.grid['xGrids']
-        M1 = self.M1 = conf.grid['yGrids']
+        self.XL = conf.grid.xLength
+        self.YL = conf.grid.yLength
+        L1 = self.L1 = conf.grid.xGrids
+        M1 = self.M1 = conf.grid.yGrids
         self.NTIME = 1
         self.NGRID = 1
 
-        mat = conf.materials.keys()[0]
-        self.DARCYCONST = conf.materials[mat].values['darcyConstant']
-        self.RHOCON = conf.materials[mat].values['density']
-        self.TK = conf.materials[mat].values['conductivity']
-        self.CP = conf.materials[mat].values['specificHeatCapacity']
-        self.ALATENT = conf.materials[mat].values['latentHeat']
-        self.BETA = conf.materials[mat].values['thermalExpansionCoeff']
-        self.VISCOSITY = conf.materials[mat].values['viscosity']
-        self.RHOREF = conf.materials[mat].values['referenceDensity']
-        self.TMELT = conf.materials[mat].values['meltingTemp']
+        self.DARCYCONST = conf.materials.darcyConstant
+        self.RHOCON = conf.materials.density
+        self.TK = conf.materials.conductivity
+        self.CP = conf.materials.specificHeatCapacity
+        self.ALATENT = conf.materials.latentHeat
+        self.BETA = conf.materials.thermalExpansionCoeff
+        self.VISCOSITY = conf.materials.viscosity
+        self.RHOREF = conf.materials.referenceDensity
+        self.TMELT = conf.materials.meltingTemp
         self.G = 9.81
-        self.TINITIAL = conf.tinit['T_INITIAL']
-        self.THOT = conf.tbcs['T_HOT']
+        self.TINITIAL = conf.tinit.T_Initial
+        self.THOT = conf.tbcs.T_Hot
 
-        self.STEPS = conf.times['steps']
-        self.TSTART = conf.times['steps'][0]['starttime']
-        self.ISTP = conf.times['steps'][0]['maxIter']
-        self.DT = conf.times['steps'][0]['timeStep']
-        self.LENSTEPS = len(conf.times['steps'])
-        self.TLAST = conf.times['timeLast']
+        self.STEPS = conf.itertimes.maxiterlimit
+        self.TSTART = conf.itertimes.maxiterlimit[0].starttime
+        self.ISTP = conf.itertimes.maxiterlimit[0].maxIter
+        self.DT = conf.itertimes.maxiterlimit[0].deltatime
+        self.LENSTEPS = len(conf.itertimes.maxiterlimit)
+        self.TLAST = conf.itertimes.timeLast
 
         self.ERU = 0.0001
         self.ERV = 0.0001
@@ -205,35 +326,72 @@ class PhaseChangeSolver:
 
         self.var_dict = self.create_output_var_dicts(conf)
 
+    def __call__(self, output_dir):
+        """
+        The solver `Call` method which begins the solver.
+        
+        Parameters
+        ----------
+        output_dir : str
+            Directory where the output files is stored.
+
+        Returns
+        -------
+        self : object
+            The object returns itself. 
+        mesh : Mesh object
+            The mesh object generated for the problem is also returned.     
+        """
+
+        self.grid_initialize()
+        self.geometry_initialize()
+        name = os.path.join(output_dir, 'pcsolver')
+        coors, ngroups, conns, mat_ids, descs = self.get_mesh_vars()
+        mesh = Mesh.from_data(
+            name,
+            coors,
+            ngroups,
+            conns,
+            mat_ids,
+            descs,
+            )
+        mesh.write()
+        self.start()
+
+        return self, mesh
+
     def create_output_var_dicts(self, conf):
         """
-    """
+        The dictionary of output variables is created as per the variables
+        mentioned in the configuration of problem description file. this method
+        is called during the initialization (via __init__ method).
+        
+        Parameters
+        ----------
+        conf : Struct
+            It contains the processed configuration required to setup the solver.
+
+        Returns
+        -------
+        var_dict : dict
+            The dictionary of output variables to be written in the output files.   
+        """
 
         var_dict = {}
         for i in conf.variables.keys():
             order = 1
-            setattr(self, conf.variables[i].name + '_dict', {
-                'name':'output_data',
-                'dofs':[conf.variables[i].name],
-                'mode':'vertex',
-                'var_name':conf.variables[i].name,
-                })
-            for j in conf.fields.keys():
-                if conf.fields[j].name == conf.variables[i].field:
-                    getattr(self, conf.variables[i].name + '_dict')['dofs'] = \
-                        [conf.variables[i].name + '.'
-                         + str(conf.fields[j].approx_order - 1)]
-                    order = conf.fields[j].approx_order
-            getattr(self, conf.variables[i].name + '_dict')['data'] = \
-                nm.empty((self.vertices, order), dtype=float)
-            var_dict[conf.variables[i].name] = Struct(**getattr(self,
-                    conf.variables[i].name + '_dict'))
+            d = {'name':'output_data', 'mode':'vertex', 'var_name':i}
+            order = getattr(conf.fields, conf.variables[i][1])[3]
+            d['dofs'] = [i + '.' + str(order - 1)]
+            d['data'] = nm.empty((self.vertices, order), dtype=float)
+            var_dict[i] = Struct(**d)
+        # print var_dict
         return var_dict
 
     def grid_initialize(self):
         """
-    THIS FUNCTION GENERATES UNIFORM GRID
-    """
+        This method generates a uniform grid.
+        """
 
         self.XU[1] = 0.
         DX = self.XL / float(self.L1 - 2)
@@ -246,9 +404,8 @@ class PhaseChangeSolver:
 
     def geometry_initialize(self):
         """
-    THIS FUNCTION GENERATES THE CONTROL VOLUMES&VARIOUS RELATED-  
-    GEOMETRICAL PARAMETERS.
-    """
+        This method generates the control volumes and various other geometrical parameters.
+        """
 
         self.NRHO = self.NP + 1
         self.NGAM = self.NRHO + 1
@@ -343,8 +500,8 @@ class PhaseChangeSolver:
 
     def start(self):
         """
-    THIS FUNCTION GIVES INITIAL CONDITIONS FOR THE PROBLEM 
-    """
+        This method sets the initial conditions in the problem domain. 
+        """
 
         for I in range(0, self.L1):
             for J in range(0, self.M1):
@@ -356,8 +513,8 @@ class PhaseChangeSolver:
 
     def diflow(self):
         """
-    THIS FUNCTION CALCULATES DISCRETIZATION EQN COEFFS AS PER POWER LAW.
-    """
+        This method calculates the discretization equation coefficients as per the power law.
+        """
 
         self.ACOF = self.DIFF
         if self.FLOW == 0:
@@ -371,8 +528,8 @@ class PhaseChangeSolver:
 
     def dense(self):
         """
-    THIS FUNCTION CALCULATES THE DENSITY AT A PARTICULAR TIME
-    """
+        This method calculates and sets the density of the control volume at its call.
+        """
 
         for I in range(0, self.L1):
             for J in range(0, self.M1):
@@ -380,8 +537,8 @@ class PhaseChangeSolver:
 
     def oldval(self):
         """
-    THIS FUNCTION STORES INITIAL VALUES FOR THE COMING TIMESTEP 
-    """
+        This method sets the initial values for the coming timestep. 
+        """
 
         for I in range(0, self.L1):
             for J in range(0, self.M1):
@@ -392,8 +549,8 @@ class PhaseChangeSolver:
 
     def reset(self):
         """
-    THIS FUNCTION RESETS 'ap' AND 'con' TO zero
-    """
+        This method resets `ap` and `con` to zero.
+        """
 
         for J in range(1, self.M2):
             for I in range(1, self.L2):
@@ -402,9 +559,8 @@ class PhaseChangeSolver:
 
     def gamsor(self):
         """
-    THIS FUNCTION GIVES DIFF. COEFF.& SOURCE TERMS FOR
-    DISCRETISED EQNS.
-    """
+        This method sets the difference coefficients and the source terms for the discretized equations.
+        """
 
         if self.NF <= 1:
             for J in range(0, self.M1):
@@ -426,8 +582,8 @@ class PhaseChangeSolver:
 
     def solve(self):
         """
-    THIS FUNCTION SOLVES DISCRETISATION EQUATIONS BY 'LINE BY LINE TDMA'.
-    """
+        This method solves the discretized equations by 'Line by Line TDMA' method.
+        """
 
         self.F = nm.empty([self.NI, self.NJ], dtype=float)
         if self.NF == 0:
@@ -586,10 +742,10 @@ class PhaseChangeSolver:
 
     def coeff(self):
         """
-    THIS FUNCTION FORMS COEFFS. FOR DISCRETISATION EQNS.
-    """
+        This method forms the coefficients for the discretization equations.
+        """
 
-    # COEFFICIENTS FOR THE U EQUATION.
+        # COEFFICIENTS FOR THE U EQUATION.
         self.ITERL = 1
         self.ZERO = 0.
         self.LCONV = 0
@@ -1164,97 +1320,94 @@ class PhaseChangeSolver:
     THIS FUNCTION FOR VECTOR PLOT
     """
 
-    # INTERNAL GRID POINTS
+        # Internal grid points
         for I in range(1, self.L2):
             for J in range(1, self.M2):
                 self.Ur[I, J] = (self.U[I, J] + self.U[I + 1, J]) / 2.0
                 self.Vr[I, J] = (self.V[I, J] + self.V[I, J + 1]) / 2.0
 
-    # LEFT BOUNDARY (EXCLUDING CORNER GRIDS)
+        # Left boundary excluding corner grids.
         for J in range(1, self.M2):
             self.Ur[0, J] = self.U[1, J]
             self.Vr[0, J] = (self.V[0, J] + self.V[0, J + 1]) / 2.0
 
-    # BOTTOM BOUNDARY (EXCLUDING CORNER GRIDS)
+        # Bottom boundary excluding corner grids.
         for I in range(1, self.L2):
             self.Ur[I, 0] = (self.U[I, 0] + self.U[I + 1, 0]) / 2.0
             self.Vr[I, 0] = self.V[I, 1]
 
-    # RIGHT BOUNDARY (EXCLUDING CORNER POINTS)
+        # Right boundary excluding corner grids.
         for J in range(1, self.M2):
             self.Ur[self.L1 - 1, J] = self.U[self.L1 - 1, J]
             self.Vr[self.L1 - 1, J] = (self.V[self.L1 - 1, J] + self.V[self.L1
                                        - 1, J + 1]) / 2.0
 
-    # TOP BOUNDARY (EXCLUDING CORNER POINTS)
+        # Top boundary excluding corner grids.
         for I in range(1, self.L2):
             self.Ur[I, self.M1 - 1] = (self.U[I, self.M1 - 1] + self.U[I + 1,
                                        self.M1 - 1]) / 2.0
             self.Vr[I, self.M1 - 1] = self.V[I, self.M1 - 1]
 
-    # ALL CORNER POINTS
-    # LEFT  BOTTOM CORNER POINT
+        # All corner points
         self.Ur[0, 0] = self.U[1, 0]
         self.Vr[0, 0] = self.V[0, 1]
 
-    # LEFT TOP CORNER POINT
         self.Ur[0, self.M1 - 1] = self.U[1, self.M1 - 1]
         self.Vr[0, self.M1 - 1] = self.V[0, self.M1 - 1]
 
-    # RIGHT BOTTOM CORNER POINT
         self.Ur[self.L1 - 1, 0] = self.U[self.L1 - 1, 0]
         self.Vr[self.L1 - 1, 0] = self.V[self.L1 - 1, 1]
 
-    # RIGHT TOP CORNER POINT
         self.Ur[self.L1 - 1, self.M1 - 1] = self.U[self.L1 - 1, self.M1 - 1]
         self.Vr[self.L1 - 1, self.M1 - 1] = self.V[self.L1 - 1, self.M1 - 1]
 
     def bound(self):
         """
-    THIS FUNCTION GIVES BOUNDARY CONDITIONS FOR THE PROBLEM
-    """
+        This method sets the boundary conditions for the problem in the following order:
+        Velocity
+        Temperature
+        Liquid fraction
+        """
 
-    # VELOCITY BOUNDARY CONDITIONS
         for J in range(0, self.M1):
-            self.U[1, J] = 0.  # LEFT FACE
-            self.U[self.L1 - 1, J] = 0.  # RIGHT FACE
+            self.U[1, J] = 0.
+            self.U[self.L1 - 1, J] = 0.
         for J in range(1, self.M1):
-            self.V[0, J] = 0.  # LEFT FACE
-            self.V[self.L1 - 1, J] = 0.  # RIGHT FACE
+            self.V[0, J] = 0.
+            self.V[self.L1 - 1, J] = 0.
         for I in range(1, self.L1):
-            self.U[I, 0] = 0.  # BOTTOM FACE
-            self.U[I, self.M1 - 1] = 0.  # TOP FACE
+            self.U[I, 0] = 0.
+            self.U[I, self.M1 - 1] = 0.
         for I in range(0, self.L1):
-            self.V[I, 1] = 0.  # BOTTOM FACE
-            self.V[I, self.M1 - 1] = 0.  # TOP FACE
+            self.V[I, 1] = 0.
+            self.V[I, self.M1 - 1] = 0.
 
-    # TEMPERATURE BOUNDARY CONDITIOMS
         for J in range(0, self.M1):
-            self.T[0, J] = self.THOT  # LEFT FACE
+            self.T[0, J] = self.THOT
             self.T[self.L1 - 1, J] = self.TINITIAL
         for I in range(0, self.L1):
-            self.T[I, 0] = self.T[I, 1]  # BOTTOM FACE
-            self.T[I, self.M1 - 1] = self.T[I, self.M2 - 1]  # TOP FACE
+            self.T[I, 0] = self.T[I, 1]
+            self.T[I, self.M1 - 1] = self.T[I, self.M2 - 1]
 
-    # LIQUID FRACTION BOUNDARY CONDITIOMS
         for J in range(0, self.M1):
-            self.EPSI[0, J] = 1  # LEFT FACE
-            self.EPSI[self.L1 - 1, J] = 0  # RIGHT FACE
+            self.EPSI[0, J] = 1
+            self.EPSI[self.L1 - 1, J] = 0
         for I in range(0, self.L1):
-            self.EPSI[I, 0] = self.EPSI[I, 1]  # BOTTOM FACE
-            self.EPSI[I, self.M1 - 1] = self.EPSI[I, self.M2 - 1]  # TOP FACE
+            self.EPSI[I, 0] = self.EPSI[I, 1]
+            self.EPSI[I, self.M1 - 1] = self.EPSI[I, self.M2 - 1]
 
     def time_update(self):
         """
-    """
+        Updates Time step.
+        """
 
         self.ITLL = self.ITLL + 1
         self.TIME = self.TIME + self.DT
 
         for STEPINDEX in range(self.LENSTEPS):
-            if self.TIME > self.STEPS[STEPINDEX]['starttime']:
-                self.ISTP = self.STEPS[STEPINDEX]['maxIter']
-                self.DT = self.STEPS[STEPINDEX]['timeStep']
+            if self.TIME > self.STEPS[STEPINDEX].starttime:
+                self.ISTP = self.STEPS[STEPINDEX].maxIter
+                self.DT = self.STEPS[STEPINDEX].deltatime
 
         BBK = self.TIME % float(self.NTIME)
         if BBK < 0.00001:
@@ -1263,8 +1416,8 @@ class PhaseChangeSolver:
 
     def time_over(self):
         """
-
-    """
+        Returns True if the time reaches TlAST.
+        """
 
         if self.TIME > self.TLAST:
             self.LSTOP = 1
@@ -1274,25 +1427,18 @@ class PhaseChangeSolver:
 
     def get_field(self, field):
         """
-    Create a MeshIO instance for file `filename` with forced `format`.
+        This method returns the field passed as the parameter.
 
-    Parameters
-    ----------
-    filename : str
-        The name of the mesh file.
-    format : str
-        One of supported formats. If None,
-        :func:`MeshIO.any_from_filename()` is called instead.
-    writable : bool
-        If True, verify that the mesh format is writable.
-    prefix_dir : str
-        The directory name to prepend to `filename`.
+        Parameters
+        ----------
+        field : str
+            The name of the field - 'u', 'p', 'T', 'epsi'.
 
-    Returns
-    -------
-    io : MeshIO subclass instance
-        The MeshIO subclass instance corresponding to the `format`.
-    """
+        Returns
+        -------
+        var_dict : dict
+            The corresponding output dictionary.
+        """
 
         if field == 'u':
             for I in range(0, self.L1):
@@ -1319,8 +1465,8 @@ class PhaseChangeSolver:
 
     def get_mesh_vars(self):
         """
-
-    """
+        This method returns the mesh vertices coordinates, node groups, connections, material ids and descs.
+        """
 
         vertices = self.NI * self.NJ
         coors = nm.empty([vertices, 2], dtype=float)
@@ -1345,8 +1491,8 @@ class PhaseChangeSolver:
 
     def get_current_time(self):
         """
-
-    """
+        This method returns the current time of the simulation step.
+        """
 
         return self.TIME
 

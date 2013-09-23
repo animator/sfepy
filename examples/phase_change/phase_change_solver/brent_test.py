@@ -70,14 +70,12 @@ def main():
     from sfepy.base.base import output, Struct
     from sfepy.base.conf import ProblemConf, get_standard_keywords
     from sfepy.fem.meshio import MeshIO, VTKMeshIO
-    from sfepy.solvers.pcsolver import PhaseChangeSolver
+    from pcsolver import PhaseChangeSolver
     from sfepy.solvers.solvers import Solver
     from sfepy.fem.variables import Variable
 
     output.prefix = 'phasechange:'
     conf = ProblemConf.from_file(__file__, required=required)
-    # a=conf.to_dict()
-    # output(conf)
     conf = PhaseChangeSolver.process_conf(conf)
     pcs = PhaseChangeSolver(conf)
     pcs, mesh = pcs(output_dir)
